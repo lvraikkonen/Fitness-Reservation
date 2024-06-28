@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "fitness-reservation"
+version = "0.1.0"
+description = ""
+authors = ["Shuo Lv <claus.lv@hotmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+fastapi = "^0.111.0"
+uvicorn = "^0.30.1"
+sqlalchemy = "^2.0.30"
+pydantic = "^2.7.3"
+passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+python-jose = {extras = ["cryptography"], version = "^3.3.0"}
+pydantic-settings = "^2.3.2"
+python-dotenv = "^1.0.1"
+fastapi-cors = "^0.0.6"
+pymssql = "^2.3.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
