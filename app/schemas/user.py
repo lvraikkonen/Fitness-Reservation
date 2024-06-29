@@ -1,23 +1,20 @@
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
+from typing import Optional
 
 
-class UserCreate(BaseModel):
+class UserBase(BaseModel):
     username: str
     email: EmailStr
+
+
+class UserCreate(UserBase):
     password: str
     is_staff: bool = False
 
 
-class UserLogin(BaseModel):
-    username: str
-    password: str
-
-
-class UserResponse(BaseModel):
+class UserResponse(UserBase):
     id: int
-    username: str
-    email: str
     is_staff: bool
     is_active: bool
     created_at: datetime

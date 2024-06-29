@@ -6,21 +6,20 @@ USE GymBookingSystem;
 GO
 
 -- 创建用户表
-CREATE TABLE [User] (
-    UserId INT PRIMARY KEY IDENTITY(1,1),
-    Username VARCHAR(50) NOT NULL,
-    Password VARCHAR(100) NOT NULL,
-    Email VARCHAR(100) NOT NULL,
-    Phone VARCHAR(20) NOT NULL,
-    Role VARCHAR(20) NOT NULL DEFAULT 'User',
-    IsLeader BIT NOT NULL DEFAULT 0,
-    CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
-    UpdatedAt DATETIME NOT NULL DEFAULT GETDATE()
+CREATE TABLE IF NOT EXISTS "users" (
+    "id" SERIAL PRIMARY KEY,
+    "username" VARCHAR(50) NOT NULL UNIQUE,
+    "email" VARCHAR(120) NOT NULL UNIQUE,
+    "password" VARCHAR(255) NOT NULL,
+    "is_staff" BOOLEAN DEFAULT FALSE,
+    "is_active" BOOLEAN DEFAULT TRUE,
+    "created_at" TIMESTAMP NOT NULL,
+    "updated_at" TIMESTAMP NOT NULL
 );
 
--- 创建用户表的唯一索引
-CREATE UNIQUE INDEX IX_User_Username ON [User](Username);
-CREATE UNIQUE INDEX IX_User_Email ON [User](Email);
+-- 创建用户表的索引
+CREATE INDEX IF NOT EXISTS "ix_users_username" ON "users" ("username");
+CREATE INDEX IF NOT EXISTS "ix_users_email" ON "users" ("email");
 
 -- 创建个人资料表
 CREATE TABLE Profile (

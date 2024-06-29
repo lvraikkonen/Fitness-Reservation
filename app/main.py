@@ -1,12 +1,25 @@
 from fastapi import FastAPI
+import asyncio
 from fastapi.middleware.cors import CORSMiddleware
-from app.db.database import Base, engine
-from app.api.v1.endpoints import user
+from app.api.v1.endpoints import user, profile, auth
+from app.scripts.init_db import init_db, create_sample_data
 from app.core.config import settings
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def lifespan_context(app: FastAPI):
+    # 在应用启动时同步初始化数据库
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, init_db)
+    await loop.run_in_executor(None, create_sample_data)
+    yield
+    # 在应用关闭时执行清理操作（如果需要）
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.PROJECT_VERSION,
+    lifespan=lifespan_context,
 )
 
 # 配置 CORS
@@ -18,11 +31,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# # 创建数据库表
-# Base.metadata.create_all(bind=engine)
-
 # 包含路由
 app.include_router(user.router, prefix="/api/v1/users", tags=["users"])
+app.include_router(profile.router, prefix="/api/v1/profiles", tags=["profiles"])
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+
+
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to the API"}
+
 
 if __name__ == "__main__":
     import uvicorn

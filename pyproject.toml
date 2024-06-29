@@ -16,7 +16,7 @@ python-jose = {extras = ["cryptography"], version = "^3.3.0"}
 pydantic-settings = "^2.3.2"
 python-dotenv = "^1.0.1"
 fastapi-cors = "^0.0.6"
-pymssql = "^2.3.0"
+psycopg2 = "^2.9.9"
 
 
 [build-system]
