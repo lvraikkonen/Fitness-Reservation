@@ -1,180 +1,223 @@
 -- 创建数据库
-CREATE DATABASE GymBookingSystem;
-GO
+CREATE DATABASE fitness_venue_booking_dev;
 
-USE GymBookingSystem;
-GO
+-- 切换到新创建的数据库
+\c fitness_venue_booking_dev;
 
 -- 创建用户表
-CREATE TABLE IF NOT EXISTS "users" (
-    "id" SERIAL PRIMARY KEY,
-    "username" VARCHAR(50) NOT NULL UNIQUE,
-    "email" VARCHAR(120) NOT NULL UNIQUE,
-    "password" VARCHAR(255) NOT NULL,
-    "is_staff" BOOLEAN DEFAULT FALSE,
-    "is_active" BOOLEAN DEFAULT TRUE,
-    "created_at" TIMESTAMP NOT NULL,
-    "updated_at" TIMESTAMP NOT NULL
-);
-
--- 创建用户表的索引
-CREATE INDEX IF NOT EXISTS "ix_users_username" ON "users" ("username");
-CREATE INDEX IF NOT EXISTS "ix_users_email" ON "users" ("email");
-
--- 创建个人资料表
-CREATE TABLE Profile (
-    ProfileId INT PRIMARY KEY IDENTITY(1,1),
-    UserId INT NOT NULL,
-    FullName VARCHAR(50),
-    Department VARCHAR(50),
-    PreferredSports VARCHAR(100),
-    PreferredTime VARCHAR(100),
-    CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
-    UpdatedAt DATETIME NOT NULL DEFAULT GETDATE(),
-    FOREIGN KEY (UserId) REFERENCES [User](UserId)
+CREATE TABLE "user" (
+  id SERIAL PRIMARY KEY,
+  username VARCHAR(50) NOT NULL UNIQUE,
+  password VARCHAR(100) NOT NULL,
+  email VARCHAR(100) NOT NULL UNIQUE,
+  phone VARCHAR(20) NOT NULL,
+  role SMALLINT NOT NULL DEFAULT 0,
+  is_leader BOOLEAN NOT NULL DEFAULT false,
+  full_name VARCHAR(50),
+  department VARCHAR(50),
+  preferred_sports VARCHAR(100),
+  preferred_time VARCHAR(100),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 创建运动场馆表
-CREATE TABLE SportVenue (
-    SportVenueId INT PRIMARY KEY IDENTITY(1,1),
-    SportVenueName VARCHAR(50) NOT NULL,
-    Location VARCHAR(100) NOT NULL,
-    CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
-    UpdatedAt DATETIME NOT NULL DEFAULT GETDATE()
+CREATE TABLE sport_venue (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(50) NOT NULL UNIQUE,
+  location VARCHAR(100) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
--- 创建运动场馆表的索引
-CREATE INDEX IX_SportVenue_SportVenueName ON SportVenue(SportVenueName);
 
 -- 创建具体场馆表
-CREATE TABLE Venue (
-    VenueId INT PRIMARY KEY IDENTITY(1,1),
-    SportVenueId INT NOT NULL,
-    VenueName VARCHAR(50) NOT NULL,
-    Capacity INT NOT NULL,
-    Notice TEXT,
-    CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
-    UpdatedAt DATETIME NOT NULL DEFAULT GETDATE(),
-    FOREIGN KEY (SportVenueId) REFERENCES SportVenue(SportVenueId)
+CREATE TABLE venue (
+  id SERIAL PRIMARY KEY,
+  sport_venue_id INTEGER NOT NULL REFERENCES sport_venue(id),
+  name VARCHAR(50) NOT NULL,
+  capacity INTEGER NOT NULL,
+  notice TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- 创建具体场馆表的索引
-CREATE INDEX IX_Venue_VenueName ON Venue(VenueName);
-
 -- 创建设施表
-CREATE TABLE Facility (
-    FacilityId INT PRIMARY KEY IDENTITY(1,1),
-    VenueId INT NOT NULL,
-    FacilityName VARCHAR(50) NOT NULL,
-    Description TEXT,
-    CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
-    UpdatedAt DATETIME NOT NULL DEFAULT GETDATE(),
-    FOREIGN KEY (VenueId) REFERENCES Venue(VenueId)
+CREATE TABLE facility (
+  id SERIAL PRIMARY KEY,
+  venue_id INTEGER NOT NULL REFERENCES venue(id),
+  name VARCHAR(50) NOT NULL,
+  description TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 创建预约时间段表
-CREATE TABLE ReservationTimeSlot (
-    TimeSlotId INT PRIMARY KEY IDENTITY(1,1),
-    VenueId INT NOT NULL,
-    Date DATE NOT NULL,
-    StartTime TIME NOT NULL,
-    EndTime TIME NOT NULL,
-    CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
-    UpdatedAt DATETIME NOT NULL DEFAULT GETDATE(),
-    FOREIGN KEY (VenueId) REFERENCES Venue(VenueId)
+CREATE TABLE reservation_time_slot (
+  id SERIAL PRIMARY KEY,
+  venue_id INTEGER NOT NULL REFERENCES venue(id),
+  date DATE NOT NULL,
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
--- 创建预约时间段表的索引
-CREATE INDEX IX_ReservationTimeSlot_Date ON ReservationTimeSlot(Date);
 
 -- 创建预约表
-CREATE TABLE Reservation (
-    ReservationId INT PRIMARY KEY IDENTITY(1,1),
-    UserId INT NOT NULL,
-    TimeSlotId INT NOT NULL,
-    Status VARCHAR(20) NOT NULL DEFAULT '已预约',
-    CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
-    UpdatedAt DATETIME NOT NULL DEFAULT GETDATE(),
-    FOREIGN KEY (UserId) REFERENCES [User](UserId),
-    FOREIGN KEY (TimeSlotId) REFERENCES ReservationTimeSlot(TimeSlotId)
+CREATE TABLE reservation (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES "user"(id),
+  time_slot_id INTEGER NOT NULL REFERENCES reservation_time_slot(id),
+  status VARCHAR(20) NOT NULL DEFAULT 'RESERVED',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- 创建预约表的组合索引
-CREATE INDEX IX_Reservation_UserId_TimeSlotId ON Reservation(UserId, TimeSlotId);
-
 -- 创建等候列表表
-CREATE TABLE WaitingList (
-    WaitingId INT PRIMARY KEY IDENTITY(1,1),
-    ReservationId INT NOT NULL,
-    UserId INT NOT NULL,
-    CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
-    UpdatedAt DATETIME NOT NULL DEFAULT GETDATE(),
-    FOREIGN KEY (ReservationId) REFERENCES Reservation(ReservationId),
-    FOREIGN KEY (UserId) REFERENCES [User](UserId)
+CREATE TABLE waiting_list (
+  id SERIAL PRIMARY KEY,
+  reservation_id INTEGER NOT NULL REFERENCES reservation(id),
+  user_id INTEGER NOT NULL REFERENCES "user"(id),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 创建反馈表
-CREATE TABLE Feedback (
-    FeedbackId INT PRIMARY KEY IDENTITY(1,1),
-    UserId INT NOT NULL,
-    Title VARCHAR(100) NOT NULL,
-    Content TEXT NOT NULL,
-    Reply TEXT,
-    CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
-    UpdatedAt DATETIME NOT NULL DEFAULT GETDATE(),
-    FOREIGN KEY (UserId) REFERENCES [User](UserId)
+CREATE TABLE feedback (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES "user"(id),
+  title VARCHAR(100) NOT NULL,
+  content TEXT NOT NULL,
+  reply TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 创建通知表
-CREATE TABLE Notification (
-    NotificationId INT PRIMARY KEY IDENTITY(1,1),
-    UserId INT NOT NULL,
-    Title VARCHAR(100) NOT NULL,
-    Content TEXT NOT NULL,
-    Type VARCHAR(20) NOT NULL,
-    IsRead BIT NOT NULL DEFAULT 0,
-    CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
-    UpdatedAt DATETIME NOT NULL DEFAULT GETDATE(),
-    FOREIGN KEY (UserId) REFERENCES [User](UserId)
+CREATE TABLE notification (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES "user"(id),
+  title VARCHAR(100) NOT NULL,
+  content TEXT NOT NULL,
+  type VARCHAR(20) NOT NULL,
+  is_read BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 创建领导预留时间表
-CREATE TABLE LeaderReservedTime (
-    ReservedTimeId INT PRIMARY KEY IDENTITY(1,1),
-    UserId INT NOT NULL,
-    VenueId INT NOT NULL,
-    DayOfWeek INT NOT NULL,
-    StartTime TIME NOT NULL,
-    EndTime TIME NOT NULL,
-    CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
-    UpdatedAt DATETIME NOT NULL DEFAULT GETDATE(),
-    FOREIGN KEY (UserId) REFERENCES [User](UserId),
-    FOREIGN KEY (VenueId) REFERENCES Venue(VenueId)
+CREATE TABLE leader_reserved_time (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES "user"(id),
+  venue_id INTEGER NOT NULL REFERENCES venue(id),
+  day_of_week SMALLINT NOT NULL,
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- 创建领导预留时间表的组合索引
-CREATE INDEX IX_LeaderReservedTime_UserId_VenueId ON LeaderReservedTime(UserId, VenueId);
 
--- 初始化角色数据
-INSERT INTO [User] (Username, Password, Email, Phone, Role)
-VALUES ('admin', 'password', 'admin@example.com', '123456789', 'Admin');
+-- 创建VenueStatus枚举类型
+CREATE TYPE VenueStatus AS ENUM ('open', 'closed', 'maintenance');
 
--- 初始化运动场馆数据
-INSERT INTO SportVenue (SportVenueName, Location)
-VALUES ('篮球馆', '1号体育馆'),
-       ('足球场', '2号体育馆'),
-       ('网球场', '3号体育馆');
+-- 修改具体场馆表,增加status字段
+ALTER TABLE venue
+ADD COLUMN status VenueStatus NOT NULL DEFAULT 'open';
 
--- 初始化具体场馆数据
-INSERT INTO Venue (SportVenueId, VenueName, Capacity, Notice)
-VALUES (1, '篮球馆1', 50, '预约须知:请带好运动鞋和水'),
-       (1, '篮球馆2', 40, '预约须知:请勿在场地吸烟'),
-       (2, '足球场1', 30, '预约须知:请勿带食物和饮料入场'),
-       (3, '网球场1', 20, '预约须知:请遵守场地秩序');
+-- 创建ReservationStatus枚举类型
+CREATE TYPE ReservationStatus AS ENUM ('pending', 'confirmed', 'cancelled');
 
--- 初始化设施数据
-INSERT INTO Facility (VenueId, FacilityName, Description)
-VALUES (1, '淋浴间', '位于篮球馆1旁边'),
-       (2, '更衣室', '位于篮球馆2旁边'),
-       (3, '储物柜', '位于足球场1入口处'),
-       (4, '休息区', '位于网球场1旁边');
+-- 修改预约表,更改status字段类型为ReservationStatus
+ALTER TABLE reservation
+ALTER COLUMN status TYPE ReservationStatus USING status::ReservationStatus;
+
+-- 更新预约表中status字段的默认值
+ALTER TABLE reservation
+ALTER COLUMN status SET DEFAULT 'pending';
+
+
+-- 插入示例数据
+-- 插入用户数据
+INSERT INTO "user" (username, password, email, phone, role, is_leader, full_name, department, preferred_sports, preferred_time)
+VALUES
+  ('john_doe', 'password123', 'john@example.com', '1234567890', 0, false, 'John Doe', 'IT', 'Basketball, Swimming', 'Evening'),
+  ('jane_smith', 'qwerty', 'jane@example.com', '9876543210', 0, false, 'Jane Smith', 'HR', 'Yoga, Running', 'Morning'),
+  ('admin', 'admin123', 'admin@example.com', '1111111111', 1, true, 'Admin User', 'Administration', NULL, NULL);
+
+-- 插入运动场馆数据  
+INSERT INTO sport_venue (name, location)
+VALUES
+  ('Basketball Court', '1st Floor, Building A'),
+  ('Swimming Pool', '2nd Floor, Building B'),
+  ('Yoga Studio', '3rd Floor, Building C'),
+  ('Running Track', 'Outdoor Area');
+
+-- 插入具体场馆数据
+INSERT INTO venue (sport_venue_id, name, capacity, notice)
+VALUES
+  (1, 'Court A', 20, 'Please bring your own basketball'),
+  (1, 'Court B', 20, 'Please bring your own basketball'),
+  (2, 'Lane 1', 10, 'Please bring your own swimming cap'),
+  (2, 'Lane 2', 10, 'Please bring your own swimming cap'),
+  (3, 'Studio 1', 15, 'Please bring your own yoga mat'),
+  (4, 'Track 1', 30, 'Please run in counter-clockwise direction');
+
+-- 插入设施数据  
+INSERT INTO facility (venue_id, name, description)
+VALUES
+  (1, 'Shower Room', 'Male shower room'),
+  (1, 'Locker Room', 'Male locker room'),
+  (2, 'Shower Room', 'Female shower room'),
+  (2, 'Locker Room', 'Female locker room'),
+  (3, 'Changing Room', 'Unisex changing room'),
+  (4, 'Water Fountain', 'Drinking water fountain');
+
+-- 插入预约时间段数据
+INSERT INTO reservation_time_slot (venue_id, date, start_time, end_time)
+VALUES
+  (1, '2023-06-01', '09:00:00', '10:00:00'),
+  (1, '2023-06-01', '10:00:00', '11:00:00'),
+  (2, '2023-06-01', '14:00:00', '15:00:00'),
+  (2, '2023-06-01', '15:00:00', '16:00:00'),
+  (3, '2023-06-02', '08:00:00', '09:00:00'),
+  (4, '2023-06-02', '18:00:00', '19:00:00');
+
+-- 插入预约数据
+INSERT INTO reservation (user_id, time_slot_id, status)
+VALUES
+  (1, 1, 'RESERVED'),
+  (2, 3, 'RESERVED'),
+  (1, 5, 'RESERVED');
+
+-- 插入等候列表数据
+INSERT INTO waiting_list (reservation_id, user_id)
+VALUES
+  (1, 2),
+  (2, 1);
+
+-- 插入反馈数据
+INSERT INTO feedback (user_id, title, content, reply)
+VALUES
+  (1, 'Great facilities', 'The basketball courts are well-maintained. Thank you!', 'Thank you for your feedback. We are glad you enjoyed our facilities.'),
+  (2, 'Improve cleanliness', 'The changing rooms could be cleaner. Please look into it.', NULL);
+
+-- 插入通知数据
+INSERT INTO notification (user_id, title, content, type, is_read)
+VALUES
+  (1, 'Reservation Confirmed', 'Your reservation for Basketball Court on 2023-06-01 at 09:00 has been confirmed.', 'RESERVATION', true),
+  (2, 'Feedback Received', 'Thank you for your feedback. We will address your concerns as soon as possible.', 'FEEDBACK', false);
+
+-- 插入领导预留时间数据
+INSERT INTO leader_reserved_time (user_id, venue_id, day_of_week, start_time, end_time)
+VALUES
+  (3, 1, 1, '14:00:00', '15:00:00'),
+  (3, 2, 3, '10:00:00', '11:00:00');
+
+-- 创建索引
+CREATE UNIQUE INDEX idx_user_username ON "user"(username);
+CREATE UNIQUE INDEX idx_user_email ON "user"(email);
+CREATE UNIQUE INDEX idx_sport_venue_name ON sport_venue(name);
+CREATE INDEX idx_venue_name ON venue(name);
+CREATE INDEX idx_reservation_time_slot_date ON reservation_time_slot(date);
+CREATE INDEX idx_reservation_user_id_time_slot_id ON reservation(user_id, time_slot_id);
+CREATE INDEX idx_leader_reserved_time_user_id_venue_id ON leader_reserved_time(user_id, venue_id);

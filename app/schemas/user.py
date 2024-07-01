@@ -1,22 +1,38 @@
 from pydantic import BaseModel, EmailStr
+from typing import List, Optional
 from datetime import datetime
-from typing import Optional
 
 
 class UserBase(BaseModel):
     username: str
     email: EmailStr
+    phone: str
+    role: int = 0
+    is_leader: bool = False
+    full_name: Optional[str] = None
+    department: Optional[str] = None
+    preferred_sports: Optional[str] = None
+    preferred_time: Optional[str] = None
 
 
 class UserCreate(UserBase):
     password: str
-    is_staff: bool = False
 
 
-class UserResponse(UserBase):
+class UserUpdate(BaseModel):
+    username: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    role: Optional[int] = None
+    is_leader: Optional[bool] = None
+    full_name: Optional[str] = None
+    department: Optional[str] = None
+    preferred_sports: Optional[str] = None
+    preferred_time: Optional[str] = None
+
+
+class User(UserBase):
     id: int
-    is_staff: bool
-    is_active: bool
     created_at: datetime
     updated_at: datetime
 

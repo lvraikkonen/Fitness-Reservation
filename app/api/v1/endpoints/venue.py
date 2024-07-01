@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
-from app.api.deps import get_db
+from app.deps import get_db
 from app.schemas.venue import VenueCreate, VenueUpdate, VenueResponse, VenueImageCreate, VenueImageResponse
 from app.services.venue_service import get_venues, get_venue, create_venue, update_venue, delete_venue, create_venue_image
 

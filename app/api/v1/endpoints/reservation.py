@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
-from app.api.deps import get_db, get_current_user
+from app.deps import get_db, get_current_user
 from models.user import User
 from app.schemas.reservation import ReservationCreate, ReservationUpdate, ReservationResponse, WaitingListCreate, WaitingListResponse
 from app.services.reservation_service import get_reservations, get_reservation, create_reservation, update_reservation, delete_reservation, create_waiting_list

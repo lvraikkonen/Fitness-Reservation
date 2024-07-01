@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Enum, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, TIMESTAMP, text, Enum
 from sqlalchemy.orm import relationship
 from app.db.database import Base
 
@@ -10,25 +10,18 @@ class VenueStatus(str, Enum):
 
 
 class Venue(Base):
-    __tablename__ = "venues"
+    __tablename__ = "venue"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), unique=True, index=True)
-    location = Column(String(100))
-    description = Column(Text)
-    status = Column(Enum(VenueStatus), default=VenueStatus.OPEN)
-    max_capacity = Column(Integer)
-    open_time = Column(String(10))
-    close_time = Column(String(10))
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    sport_venue_id = Column(Integer, ForeignKey("sport_venue.id"), nullable=False)
+    name = Column(String(50), nullable=False)
+    capacity = Column(Integer, nullable=False)
+    status = Column(Enum(VenueStatus), default=VenueStatus.OPEN, nullable=False)
+    notice = Column(Text)
+    created_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
+    updated_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP"))
 
-    images = relationship("VenueImage", back_populates="venue")
-
-
-class VenueImage(Base):
-    __tablename__ = "venue_images"
-
-    id = Column(Integer, primary_key=True, index=True)
-    venue_id = Column(Integer, ForeignKey("venues.id"))
-    image_url = Column(String(200))
-
-    venue = relationship("Venue", back_populates="images")
+    sport_venue = relationship("SportVenue", back_populates="venues")
+    facilities = relationship("Facility", back_populates="venue")
+    reservation_time_slots = relationship("ReservationTimeSlot", back_populates="venue")
+    leader_reserved_times = relationship("LeaderReservedTime", back_populates="venue")

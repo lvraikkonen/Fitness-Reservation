@@ -1,39 +1,28 @@
 from pydantic import BaseModel
+from typing import List, Optional
 from datetime import datetime
 from app.models.reservation import ReservationStatus
 
 
 class ReservationBase(BaseModel):
-    start_time: datetime
-    end_time: datetime
+    status: ReservationStatus
 
 
 class ReservationCreate(ReservationBase):
-    venue_id: int
+    user_id: int
+    time_slot_id: int
 
 
-class ReservationUpdate(BaseModel):
-    status: ReservationStatus
+class ReservationUpdate(ReservationBase):
+    status: Optional[ReservationStatus] = None
 
 
-class ReservationResponse(ReservationBase):
+class Reservation(ReservationBase):
     id: int
     user_id: int
-    venue_id: int
-    status: ReservationStatus
-
-    class Config:
-        from_attributes = True
-
-
-class WaitingListCreate(BaseModel):
-    reservation_id: int
-
-
-class WaitingListResponse(BaseModel):
-    id: int
-    user_id: int
-    reservation_id: int
+    time_slot_id: int
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True

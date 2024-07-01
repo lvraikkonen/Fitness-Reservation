@@ -1,18 +1,27 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, func
+from sqlalchemy import Column, Integer, String, Boolean, TIMESTAMP, text
 from sqlalchemy.orm import relationship
 from app.db.database import Base
 
 
 class User(Base):
-    __tablename__ = "users"
+    __tablename__ = "user"
 
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String(50), unique=True, index=True, nullable=False)
-    email = Column(String(120), unique=True, index=True, nullable=False)
-    password = Column(String(255), nullable=False)
-    is_staff = Column(Boolean, default=False)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=func.now(), nullable=False)
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(50), unique=True, nullable=False)
+    password = Column(String(100), nullable=False)
+    email = Column(String(100), unique=True, nullable=False)
+    phone = Column(String(20), nullable=False)
+    role = Column(Integer, nullable=False, default=0)
+    is_leader = Column(Boolean, nullable=False, default=False)
+    full_name = Column(String(50))
+    department = Column(String(50))
+    preferred_sports = Column(String(100))
+    preferred_time = Column(String(100))
+    created_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
+    updated_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP"))
 
-    profile = relationship("Profile", back_populates="user", uselist=False)
+    reservations = relationship("Reservation", back_populates="user")
+    waiting_lists = relationship("WaitingList", back_populates="user")
+    feedbacks = relationship("Feedback", back_populates="user")
+    notifications = relationship("Notification", back_populates="user")
+    leader_reserved_times = relationship("LeaderReservedTime", back_populates="user")
