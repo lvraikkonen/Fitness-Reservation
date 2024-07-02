@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 import asyncio
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1.endpoints import user, auth, venue, reservation
+from app.api.v1.endpoints import user
 from app.scripts.init_db import init_db, create_sample_data, recreate_db
 from app.core.config import settings
 from contextlib import asynccontextmanager
@@ -11,8 +11,8 @@ from contextlib import asynccontextmanager
 async def lifespan_context(app: FastAPI):
     # 在应用启动时同步初始化数据库
     loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, recreate_db)
-    await loop.run_in_executor(None, create_sample_data)
+    # await loop.run_in_executor(None, recreate_db)
+    # await loop.run_in_executor(None, create_sample_data)
     yield
     # 在应用关闭时执行清理操作（如果需要）
 
@@ -32,10 +32,9 @@ app.add_middleware(
 )
 
 # 包含路由
-# app.include_router(user.router, prefix="/api/v1/users", tags=["users"])
+app.include_router(user.router, prefix="/api/v1/users", tags=["users"])
 # app.include_router(venue.router, prefix="/api/v1/venues", tags=["venues"])
 # app.include_router(reservation.router, prefix="/api/v1/reservations", tags=["reservations"])
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 
 
 @app.get("/")
