@@ -13,4 +13,4 @@ class WaitingList(Base):
     updated_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP"))
 
     reservation = relationship("Reservation", back_populates="waiting_lists")
-    user = relationship("User", back_populates="waiting_lists")\
+    user = relationship("User", back_populates="waiting_lists")

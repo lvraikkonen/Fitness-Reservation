@@ -3,7 +3,7 @@ from typing import List
 from fastapi import Depends, HTTPException
 
 from app.models.user import User
-from app.schemas.user import UserCreate, UserUpdate
+from app.schemas.user import UserCreate, UserUpdate, UserResponse
 from app.core.security import get_password_hash
 from app.deps import get_db
 
@@ -27,7 +27,7 @@ class UserService:
     def get_users(self, skip: int = 0, limit: int = 100) -> List[User]:
         return self.db.query(User).offset(skip).limit(limit).all()
 
-    def create_user(self, user: UserCreate) -> User:
+    def create_user(self, user: UserCreate) -> UserResponse:
         hashed_password = get_password_hash(user.password)
         db_user = User(
             username=user.username,
@@ -44,7 +44,7 @@ class UserService:
         self.db.add(db_user)
         self.db.commit()
         self.db.refresh(db_user)
-        return db_user
+        return UserResponse.from_orm(db_user)
 
     def update_user(self, user_id: int, user: UserUpdate) -> User:
         db_user = self.get_user(user_id)

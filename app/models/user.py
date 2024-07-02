@@ -21,7 +21,7 @@ class User(Base):
     updated_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP"))
 
     reservations = relationship("Reservation", back_populates="user")
-    waiting_lists = relationship("WaitingList", back_populates="user")
     feedbacks = relationship("Feedback", back_populates="user")
     notifications = relationship("Notification", back_populates="user")
     leader_reserved_times = relationship("LeaderReservedTime", back_populates="user")
+    waiting_lists = relationship("WaitingList", back_populates="user")

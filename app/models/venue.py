@@ -1,9 +1,10 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, TIMESTAMP, text, Enum
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, TIMESTAMP, text, Enum as SqlAlchemyEnum
 from sqlalchemy.orm import relationship
 from app.db.database import Base
+from enum import Enum
 
 
-class VenueStatus(str, Enum):
+class VenueStatus(Enum):
     OPEN = "open"
     CLOSED = "closed"
     MAINTENANCE = "maintenance"
@@ -16,7 +17,7 @@ class Venue(Base):
     sport_venue_id = Column(Integer, ForeignKey("sport_venue.id"), nullable=False)
     name = Column(String(50), nullable=False)
     capacity = Column(Integer, nullable=False)
-    status = Column(Enum(VenueStatus), default=VenueStatus.OPEN, nullable=False)
+    status = Column(SqlAlchemyEnum(VenueStatus), default=VenueStatus.OPEN, nullable=False)
     notice = Column(Text)
     created_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
     updated_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP"))

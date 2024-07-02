@@ -31,6 +31,13 @@ class UserUpdate(BaseModel):
     preferred_time: Optional[str] = None
 
 
+class UserResponse(UserBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
 class User(UserBase):
     id: int
     created_at: datetime
