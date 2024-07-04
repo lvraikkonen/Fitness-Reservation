@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 import asyncio
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1.endpoints import user
+from app.api.v1.endpoints import user, sport_venue, venue, facility
 from app.scripts.init_db import init_db, create_sample_data, recreate_db
 from app.core.config import settings
 from contextlib import asynccontextmanager
@@ -33,7 +33,10 @@ app.add_middleware(
 
 # 包含路由
 app.include_router(user.router, prefix="/api/v1/users", tags=["users"])
-# app.include_router(venue.router, prefix="/api/v1/venues", tags=["venues"])
+app.include_router(sport_venue.router, prefix="/api/v1/sport_venues", tags=["sport_venues"])
+app.include_router(venue.router, prefix="/api/v1/venues", tags=["venues"])
+app.include_router(facility.router, prefix="/api/v1/facilities", tags=["facilities"])
+
 # app.include_router(reservation.router, prefix="/api/v1/reservations", tags=["reservations"])
 
 

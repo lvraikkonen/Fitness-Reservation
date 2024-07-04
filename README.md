@@ -4,13 +4,13 @@ Employee Fitness Center Reservation System (AIChat-Oriented-Programming)
 
 ## 后端功能模块
 
-- [ ] 用户管理模块
+- [x] 用户管理模块
 
-- [ ] 健身场馆管理模块
+- [x] 健身场馆管理模块
 
 - [ ] 预约管理模块
 
-- [ ]  通知与提醒模块
+- [ ] 通知与提醒模块
 
 - [ ] 数据统计与分析模块
 

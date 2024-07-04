@@ -1,39 +1,38 @@
-from typing import List
 from sqlalchemy.orm import Session
-from fastapi import Depends, HTTPException
-from datetime import datetime
-
 from app.models.reservation_time_slot import ReservationTimeSlot
-from app.schemas.reservation_time_slot import ReservationTimeSlotCreate
-from app.deps import get_db
+from app.schemas.reservation_time_slot import ReservationTimeSlotCreate, ReservationTimeSlotUpdate
 
 
 class ReservationTimeSlotService:
-    def __init__(self, db: Session = Depends(get_db)):
+    def __init__(self, db: Session):
         self.db = db
 
-    def get_time_slot(self, time_slot_id: int) -> ReservationTimeSlot:
-        time_slot = self.db.query(ReservationTimeSlot).filter(ReservationTimeSlot.id == time_slot_id).first()
-        if not time_slot:
-            raise HTTPException(status_code=404, detail="Time slot not found")
-        return time_slot
-
-    def get_time_slots(self, venue_id: int = None, date: datetime = None, skip: int = 0, limit: int = 100) -> List[ReservationTimeSlot]:
-        query = self.db.query(ReservationTimeSlot)
-        if venue_id:
-            query = query.filter(ReservationTimeSlot.venue_id == venue_id)
-        if date:
-            query = query.filter(ReservationTimeSlot.date == date)
-        return query.offset(skip).limit(limit).all()
-
-    def create_time_slot(self, time_slot: ReservationTimeSlotCreate) -> ReservationTimeSlot:
-        db_time_slot = ReservationTimeSlot(**time_slot.dict())
-        self.db.add(db_time_slot)
+    def create_reservation_time_slot(self, reservation_time_slot: ReservationTimeSlotCreate):
+        db_reservation_time_slot = ReservationTimeSlot(**reservation_time_slot.dict())
+        self.db.add(db_reservation_time_slot)
         self.db.commit()
-        self.db.refresh(db_time_slot)
-        return db_time_slot
+        self.db.refresh(db_reservation_time_slot)
+        return db_reservation_time_slot
 
-    def delete_time_slot(self, time_slot_id: int):
-        db_time_slot = self.get_time_slot(time_slot_id)
-        self.db.delete(db_time_slot)
-        self.db.commit()
+    def get_reservation_time_slots(self, venue_id: int):
+        return self.db.query(ReservationTimeSlot).filter(ReservationTimeSlot.venue_id == venue_id).all()
+
+    def get_reservation_time_slot(self, reservation_time_slot_id: int):
+        return self.db.query(ReservationTimeSlot).filter(ReservationTimeSlot.id == reservation_time_slot_id).first()
+
+    def update_reservation_time_slot(self, reservation_time_slot_id: int, reservation_time_slot: ReservationTimeSlotUpdate):
+        db_reservation_time_slot = self.db.query(ReservationTimeSlot).filter(ReservationTimeSlot.id == reservation_time_slot_id).first()
+        if db_reservation_time_slot:
+            update_data = reservation_time_slot.dict(exclude_unset=True)
+            for key, value in update_data.items():
+                setattr(db_reservation_time_slot, key, value)
+            self.db.commit()
+            self.db.refresh(db_reservation_time_slot)
+        return db_reservation_time_slot
+
+    def delete_reservation_time_slot(self, reservation_time_slot_id: int):
+        db_reservation_time_slot = self.db.query(ReservationTimeSlot).filter(ReservationTimeSlot.id == reservation_time_slot_id).first()
+        if db_reservation_time_slot:
+            self.db.delete(db_reservation_time_slot)
+            self.db.commit()
+        return db_reservation_time_slot

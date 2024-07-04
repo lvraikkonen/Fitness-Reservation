@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from fastapi import Depends, HTTPException
 
 from app.models.facility import Facility
+from app.models.venue import Venue
 from app.schemas.facility import FacilityCreate, FacilityUpdate
 from app.deps import get_db
 
@@ -23,12 +24,17 @@ class FacilityService:
             query = query.filter(Facility.venue_id == venue_id)
         return query.offset(skip).limit(limit).all()
 
-    def create_facility(self, facility: FacilityCreate) -> Facility:
-        db_facility = Facility(**facility.dict())
-        self.db.add(db_facility)
-        self.db.commit()
-        self.db.refresh(db_facility)
-        return db_facility
+    def create_facility(self, venue_id: int, facility: FacilityCreate):
+        # 检查对应的具体场馆是否存在
+        db_venue = self.db.query(Venue).filter(Venue.id == venue_id).first()
+        if db_venue:
+            db_facility = Facility(**facility.dict(), venue_id=venue_id)
+            self.db.add(db_facility)
+            self.db.commit()
+            self.db.refresh(db_facility)
+            return db_facility
+        else:
+            raise ValueError(f"Venue with id {venue_id} does not exist.")
 
     def update_facility(self, facility_id: int, facility: FacilityUpdate) -> Facility:
         db_facility = self.get_facility(facility_id)
