@@ -2,8 +2,10 @@ from typing import List
 from sqlalchemy.orm import Session
 from fastapi import Depends, HTTPException
 
+from app.models.user import User
 from app.models.notification import Notification
 from app.schemas.notification import NotificationCreate, NotificationUpdate
+from app.schemas.reservation import ReservationRead
 from app.deps import get_db
 
 
@@ -43,3 +45,52 @@ class NotificationService:
         db_notification = self.get_notification(notification_id)
         self.db.delete(db_notification)
         self.db.commit()
+
+    def notify_user(self, user_id: int, message: str) -> None:
+        user = self.db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise ValueError("User not found")
+
+        notification = Notification(
+            user_id=user_id,
+            message=message
+        )
+        self.db.add(notification)
+        self.db.commit()
+
+        self.send_email(user.email, message)
+        self.send_sms(user.phone, message)
+
+    def send_email(self, email: str, message: str) -> None:
+        # 在这里实现发送电子邮件的逻辑
+        print(f"Sending email to {email}: {message}")
+
+    def send_sms(self, phone: str, message: str) -> None:
+        # 在这里实现发送短信的逻辑
+        print(f"Sending SMS to {phone}: {message}")
+
+    def send_reservation_reminder(self, reservation: ReservationRead) -> None:
+        user = self.db.query(User).filter(User.id == reservation.user_id).first()
+        if user:
+            # 发送提醒通知给用户
+            self.send_email(
+                email=user.email,
+                message=f"You have a reservation (ID: {reservation.id}) coming up soon!"
+            )
+            self.send_sms(
+                phone=user.phone,
+                message=f"Reminder: You have a reservation (ID: {reservation.id}) coming up soon!"
+            )
+
+    def send_reservation_cancellation_notice(self, reservation: ReservationRead) -> None:
+        user = self.db.query(User).filter(User.id == reservation.user_id).first()
+        if user:
+            # 发送预约取消通知给用户
+            self.send_email(
+                email=user.email,
+                message=f"Your reservation (ID: {reservation.id}) has been cancelled due to venue closure or time slot adjustment."
+            )
+            self.send_sms(
+                phone=user.phone,
+                message=f"Notice: Your reservation (ID: {reservation.id}) has been cancelled due to venue closure or time slot adjustment."
+            )

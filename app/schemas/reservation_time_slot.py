@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from datetime import date, time, datetime
 
 
@@ -11,7 +11,6 @@ class ReservationTimeSlotBase(BaseModel):
 
 class ReservationTimeSlotCreate(ReservationTimeSlotBase):
     venue_id: int
-    pass
 
 
 class ReservationTimeSlotUpdate(ReservationTimeSlotBase):
