@@ -20,8 +20,22 @@ class Settings(BaseSettings):
         extra = "ignore"
 
 
+class MongoSettings(BaseSettings):
+    MONGO_HOST: str = os.getenv("MONGO_HOST")
+    MONGO_PORT: int = os.getenv("MONGO_PORT")
+    MONGO_USER: str = os.getenv("MONGO_USER")
+    MONGO_PASSWORD: str = os.getenv("MONGO_PASSWORD")
+    MONGO_DATABASE: str = os.getenv("MONGO_DATABASE")
+    MONGO_AUTH_SOURCE: str = os.getenv("MONGO_AUTH_SOURCE")
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        extra = "ignore"
+
+
 class DevelopmentSettings(Settings):
-    # 开发环境使用本地SQLServer数据库
+    # 开发环境使用本地数据库
     DATABASE_URL: str = os.getenv("DEVELOPMENT_DATABASE_URL")
     SECRET_KEY: str = os.getenv("DEVELOPMENT_SECRET_KEY")
 
@@ -57,3 +71,6 @@ def get_settings() -> Settings:
 
 # 创建 settings 实例,用于在整个应用程序中访问配置项
 settings = get_settings()
+
+# log db settings
+mongo_settings = MongoSettings()

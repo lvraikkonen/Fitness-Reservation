@@ -17,6 +17,9 @@ pydantic-settings = "^2.3.2"
 python-dotenv = "^1.0.1"
 fastapi-cors = "^0.0.6"
 psycopg2 = "^2.9.9"
+celery = "^5.4.0"
+pymongo = "^4.8.0"
+mongoengine = "^0.28.2"
 
 
 [build-system]

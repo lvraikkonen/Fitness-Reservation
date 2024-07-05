@@ -6,6 +6,7 @@ from app.models.user import User
 from app.schemas.user import UserCreate, UserUpdate, UserResponse
 from app.core.security import get_password_hash, verify_password
 from app.deps import get_db
+from app.services.log_services import log_operation
 
 
 class UserService:
@@ -53,6 +54,7 @@ class UserService:
         self.db.add(db_user)
         self.db.commit()
         self.db.refresh(db_user)
+        log_operation(db_user.id, "register", {"username": db_user.username})
         return UserResponse.from_orm(db_user)
 
     def update_user(self, user_id: int, user: UserUpdate) -> User:
@@ -73,6 +75,7 @@ class UserService:
                 status_code=401,
                 detail="Incorrect username or password"
             )
+        log_operation(user.id, "login", {"username": user.username})
         return user
 
     def delete_user(self, user_id: int):
