@@ -1,33 +1,34 @@
 import React from 'react';
-import { BrowserRouter as Router, Route, Switch } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { Layout } from 'antd';
-import HomePage from './pages/HomePage';
-import LoginPage from './pages/LoginPage';
-import UserProfilePage from './pages/UserProfilePage';
-import GymListPage from './pages/GymListPage';
-import BookingPage from './pages/BookingPage';
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
+// import VenueManagement from './pages/VenueManagement';
+// import ReservationSystem from './pages/ReservationSystem';
+// import Statistics from './pages/Statistics';
+import Feedback from './pages/Feedback';
+import Profile from './pages/Profile';
+import Settings from './pages/Settings';
+import PrivateRoute from './components/PrivateRoute';
 
-const { Header, Content, Footer } = Layout;
+const { Content } = Layout;
 
 function App() {
   return (
     <Router>
-      <Layout className="layout" style={{ minHeight: '100vh' }}>
-        <Header>
-          {/* Add navigation menu here */}
-        </Header>
+      <Layout style={{ minHeight: '100vh' }}>
         <Content style={{ padding: '0 50px' }}>
-          <Switch>
-            <Route exact path="/" component={HomePage} />
-            <Route path="/login" component={LoginPage} />
-            <Route path="/profile" component={UserProfilePage} />
-            <Route path="/gyms" component={GymListPage} />
-            <Route path="/booking" component={BookingPage} />
-          </Switch>
+          <Routes>
+          <Route path="/" element={<Login />} />
+            <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+            {/* <Route path="/venues" element={<PrivateRoute><VenueManagement /></PrivateRoute>} />
+            <Route path="/reservations" element={<PrivateRoute><ReservationSystem /></PrivateRoute>} />
+            <Route path="/statistics" element={<PrivateRoute><Statistics /></PrivateRoute>} /> */}
+            <Route path="/feedback" element={<PrivateRoute><Feedback /></PrivateRoute>} />
+            <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
+            <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
+          </Routes>
         </Content>
-        <Footer style={{ textAlign: 'center' }}>
-          Fitness Booking System ©2024 Created by Your Company
-        </Footer>
       </Layout>
     </Router>
   );
