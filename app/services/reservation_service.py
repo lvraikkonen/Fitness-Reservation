@@ -13,7 +13,7 @@ from app.schemas.reservation_time_slot import ReservationTimeSlotBase
 from app.schemas.waiting_list import WaitingListReadWithReservationTimeSlot
 
 from app.services.notification_service import NotificationService
-from app.services.log_services import log_operation
+# from app.services.log_services import log_operation
 
 
 class ReservationService:
@@ -184,7 +184,7 @@ class ReservationService:
             )
             self.db.add(new_reservation)
             self.db.commit()
-            log_operation(new_reservation.user_id, "create_reservation", {"reservation_id": new_reservation.id})
+            # log_operation(new_reservation.user_id, "create_reservation", {"reservation_id": new_reservation.id})
             self.db.refresh(new_reservation)
             return new_reservation
 

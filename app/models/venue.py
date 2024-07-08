@@ -26,3 +26,4 @@ class Venue(Base):
     facilities = relationship("Facility", back_populates="venue")
     reservation_time_slots = relationship("ReservationTimeSlot", back_populates="venue")
     leader_reserved_times = relationship("LeaderReservedTime", back_populates="venue")
+    feedbacks = relationship("Feedback", back_populates="venue")

@@ -1,11 +1,17 @@
-from datetime import datetime
-from app.db.mongo import db
+from mongoengine import Document, StringField, IntField, DateTimeField
 
 
-class UserLog(db.Document):
-    user_id = db.IntField(required=True)
-    operation = db.StringField(required=True)
-    details = db.StringField()
-    timestamp = db.DateTimeField(default=datetime.utcnow)
+class UserLog(Document):
+    user_id = IntField(required=True)
+    operation = StringField(required=True)
+    timestamp = DateTimeField(required=True)
+    details = StringField()
 
-    meta = {'collection': 'user_logs'}
+    meta = {
+        'collection': 'user_logs',
+        'indexes': [
+            'user_id',
+            'operation',
+            'timestamp'
+        ]
+    }

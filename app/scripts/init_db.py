@@ -48,7 +48,8 @@ def create_sample_data():
         # 创建场馆设施
         facility1 = Facility(venue_id=venue1.id, name="Locker Room", description="Locker room for Court 1")
         facility2 = Facility(venue_id=venue2.id, name="Shower Room", description="Shower room for Court 2")
-        db.add_all([facility1, facility2])
+        facility3 = Facility(venue_id=venue1.id, name="Shower Room", description="Shower room for Court 1")
+        db.add_all([facility1, facility2, facility3])
         db.commit()
 
         # 创建预约时间段
@@ -73,9 +74,9 @@ def create_sample_data():
         db.commit()
 
         # 创建反馈
-        feedback1 = Feedback(user_id=user1.id, title="Great facilities",
+        feedback1 = Feedback(user=user1, venue=venue1, title="Great facilities", rating=5,
                              content="The facilities at the basketball court are amazing!")
-        feedback2 = Feedback(user_id=user2.id, title="Suggestion",
+        feedback2 = Feedback(user=user2, venue=venue2, title="Suggestion", rating=3,
                              content="It would be great to have more time slots available.")
         db.add_all([feedback1, feedback2])
         db.commit()

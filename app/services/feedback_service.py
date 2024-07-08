@@ -8,38 +8,42 @@ from app.deps import get_db
 
 
 class FeedbackService:
-    def __init__(self, db: Session = Depends(get_db)):
+    def __init__(self, db: Session):
         self.db = db
 
-    def get_feedback(self, feedback_id: int) -> Feedback:
-        feedback = self.db.query(Feedback).filter(Feedback.id == feedback_id).first()
-        if not feedback:
-            raise HTTPException(status_code=404, detail="Feedback not found")
+    def create_feedback(self, feedback_data: FeedbackCreate):
+        feedback = Feedback(**feedback_data.dict())
+        self.db.add(feedback)
+        self.db.commit()
+        self.db.refresh(feedback)
         return feedback
 
-    def get_feedbacks(self, user_id: int = None, skip: int = 0, limit: int = 100) -> List[Feedback]:
-        query = self.db.query(Feedback)
-        if user_id:
-            query = query.filter(Feedback.user_id == user_id)
-        return query.offset(skip).limit(limit).all()
+    def get_feedback_by_id(self, feedback_id: int):
+        return self.db.query(Feedback).filter(Feedback.id == feedback_id).first()
 
-    def create_feedback(self, feedback: FeedbackCreate) -> Feedback:
-        db_feedback = Feedback(**feedback.dict())
-        self.db.add(db_feedback)
-        self.db.commit()
-        self.db.refresh(db_feedback)
-        return db_feedback
+    def get_all_feedbacks(self):
+        return self.db.query(Feedback).all()
 
-    def update_feedback(self, feedback_id: int, feedback: FeedbackUpdate) -> Feedback:
-        db_feedback = self.get_feedback(feedback_id)
-        update_data = feedback.dict(exclude_unset=True)
-        for key, value in update_data.items():
-            setattr(db_feedback, key, value)
-        self.db.commit()
-        self.db.refresh(db_feedback)
-        return db_feedback
+    def update_feedback(self, feedback_id: int, feedback_data: FeedbackUpdate):
+        feedback = self.db.query(Feedback).filter(Feedback.id == feedback_id).first()
+        if feedback:
+            for field, value in feedback_data.dict(exclude_unset=True).items():
+                setattr(feedback, field, value)
+            self.db.commit()
+            self.db.refresh(feedback)
+        return feedback
 
     def delete_feedback(self, feedback_id: int):
-        db_feedback = self.get_feedback(feedback_id)
-        self.db.delete(db_feedback)
-        self.db.commit()
+        feedback = self.db.query(Feedback).filter(Feedback.id == feedback_id).first()
+        if feedback:
+            self.db.delete(feedback)
+            self.db.commit()
+        return feedback
+
+    def reply_to_feedback(self, feedback_id: int, reply: str):
+        feedback = self.db.query(Feedback).filter(Feedback.id == feedback_id).first()
+        if feedback:
+            feedback.reply = reply
+            self.db.commit()
+            self.db.refresh(feedback)
+        return feedback
