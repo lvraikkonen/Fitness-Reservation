@@ -1,8 +1,9 @@
 from typing import List, Union, Dict, Optional, Any
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_
 from datetime import datetime, timedelta, date
 
+from app.models.sport_venue import SportVenue
 from app.models.venue import Venue
 from app.models.reservation import Reservation, ReservationStatus
 from app.models.reservation_time_slot import ReservationTimeSlot
@@ -44,6 +45,46 @@ class ReservationService:
             self.db.commit()
         return db_reservation
 
+    def get_reservations_by_venue(self, venue_id: int):
+        # 首先获取该venue的所有time slots
+        time_slots = self.db.query(ReservationTimeSlot).filter(ReservationTimeSlot.venue_id == venue_id).all()
+
+        # 获取这些time slots对应的所有reservations
+        time_slot_ids = [slot.id for slot in time_slots]
+        reservations = self.db.query(Reservation).filter(Reservation.time_slot_id.in_(time_slot_ids)).all()
+
+        return reservations
+
+    def get_user_reservations(self, user_id: int, venue_id: Optional[int] = None):
+        query = (
+            self.db.query(Reservation)
+            .join(ReservationTimeSlot)
+            .join(Venue)
+            .join(SportVenue)
+            .options(joinedload(Reservation.time_slot))
+            .filter(Reservation.user_id == user_id)
+        )
+
+        if venue_id:
+            query = query.filter(ReservationTimeSlot.venue_id == venue_id)
+
+        reservations = query.all()
+
+        return [
+            {
+                "id": reservation.id,
+                "user_id": reservation.user_id,
+                "time_slot_id": reservation.time_slot_id,
+                "status": reservation.status,
+                "date": reservation.time_slot.date,
+                "start_time": reservation.time_slot.start_time.strftime("%H:%M"),
+                "end_time": reservation.time_slot.end_time.strftime("%H:%M"),
+                "sport_venue_name": reservation.time_slot.venue.sport_venue.name,
+                "venue_name": reservation.time_slot.venue.name
+            }
+            for reservation in reservations
+        ]
+
     def get_venue_calendar(
             self,
             venue_id: int,
@@ -53,8 +94,12 @@ class ReservationService:
             page_size: int = 10
     ) -> Dict[str, Any]:
         # 构建查询对象
-        query = self.db.query(ReservationTimeSlot).filter(
-            ReservationTimeSlot.venue_id == venue_id
+        query = (
+            self.db.query(ReservationTimeSlot)
+            .options(joinedload(ReservationTimeSlot.reservations))
+            .join(Venue)
+            .join(SportVenue)
+            .filter(ReservationTimeSlot.venue_id == venue_id)
         )
 
         # 添加日期范围过滤
@@ -69,31 +114,40 @@ class ReservationService:
         offset = (page - 1) * page_size
         reservation_time_slots = query.offset(offset).limit(page_size).all()
 
+        venue = self.db.query(Venue).join(SportVenue).filter(Venue.id == venue_id).first()
+
         # 将预约时段按照日期分组
-        calendar_data: Dict[date, List[ReservationTimeSlotRead]] = {}
+        calendar_data: Dict[date, List[Dict[str, Any]]] = {}
         for time_slot in reservation_time_slots:
-            reservation_time_slot_read = ReservationTimeSlotRead(
-                id=time_slot.id,
-                venue_id=time_slot.venue_id,
-                date=time_slot.date,
-                start_time=time_slot.start_time,
-                end_time=time_slot.end_time,
-                reservations=[
-                    ReservationRead(
-                        id=reservation.id,
-                        user_id=reservation.user_id,
-                        time_slot_id=reservation.time_slot_id,
-                        status=reservation.status
-                    )
-                    for reservation in time_slot.reservations
+            time_slot_data = {
+                "id": time_slot.id,
+                "date": time_slot.date,
+                "start_time": time_slot.start_time,
+                "end_time": time_slot.end_time,
+                "reservations": [
+                    {
+                        "id": res.id,
+                        "user_id": res.user_id,
+                        "time_slot_id": res.time_slot_id,
+                        "status": res.status,
+                        "date": time_slot.date,
+                        "start_time": time_slot.start_time,
+                        "end_time": time_slot.end_time,
+                        "sport_venue_name": venue.sport_venue.name,
+                        "venue_name": venue.name
+                    }
+                    for res in time_slot.reservations
                 ]
-            )
+            }
 
             if time_slot.date not in calendar_data:
                 calendar_data[time_slot.date] = []
-            calendar_data[time_slot.date].append(reservation_time_slot_read)
+            calendar_data[time_slot.date].append(time_slot_data)
 
         return {
+            "venue_id": venue_id,
+            "venue_name": venue.name,
+            "sport_venue_name": venue.sport_venue.name,
             "calendar_data": calendar_data,
             "total_count": total_count,
             "total_pages": total_pages,
@@ -137,7 +191,7 @@ class ReservationService:
         return False
 
     # 创建预约
-    def create_reservation(self, reservation_data: ReservationCreate) -> Union[Reservation, WaitingList]:
+    def create_reservation(self, reservation_data: ReservationCreate) -> Union[dict, WaitingList]:
         # 创建 ReservationTimeSlotBase 对象
         time_slot_data = ReservationTimeSlotBase(
             date=reservation_data.date,
@@ -184,9 +238,31 @@ class ReservationService:
             )
             self.db.add(new_reservation)
             self.db.commit()
-            # log_operation(new_reservation.user_id, "create_reservation", {"reservation_id": new_reservation.id})
             self.db.refresh(new_reservation)
-            return new_reservation
+
+            # 获取关联的时间段、场地和运动场地信息
+            reservation_with_details = (
+                self.db.query(Reservation)
+                .options(
+                    joinedload(Reservation.time_slot)
+                    .joinedload(ReservationTimeSlot.venue)
+                    .joinedload(Venue.sport_venue)
+                )
+                .filter(Reservation.id == new_reservation.id)
+                .first()
+            )
+
+            return {
+                "id": reservation_with_details.id,
+                "user_id": reservation_with_details.user_id,
+                "time_slot_id": reservation_with_details.time_slot_id,
+                "status": reservation_with_details.status,
+                "date": reservation_with_details.time_slot.date,
+                "start_time": reservation_with_details.time_slot.start_time,
+                "end_time": reservation_with_details.time_slot.end_time,
+                "sport_venue_name": reservation_with_details.time_slot.venue.sport_venue.name,
+                "venue_name": reservation_with_details.time_slot.venue.name
+            }
 
     # 取消预约
     def cancel_reservation(self, reservation_id: int) -> None:

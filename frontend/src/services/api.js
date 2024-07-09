@@ -3,31 +3,40 @@ import axios from 'axios';
 const API_URL = 'http://localhost:8000/api/v1';
 const STATS_URL = 'http://localhost:8000/stats';
 const FEEDBACK_URL = 'http://localhost:8000/feedback';
+const RESERVATION_URL = 'http://localhost:8000/api/v1/reservations'
+const VENUE_URL = 'http://localhost:8000/api/v1/venues'
 
-const api = axios.create({
-  baseURL: API_URL,
-});
+const addAuthInterceptor = (apiInstance) => {
+  apiInstance.interceptors.request.use((config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    return config;
+  });
+  return apiInstance;
+};
 
-export const statsApi = axios.create({  // 添加这个新的 API 实例
+const api = addAuthInterceptor(axios.create({ baseURL: API_URL }));
+
+export const statsApi = addAuthInterceptor(axios.create({
   baseURL: STATS_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+  headers: { 'Content-Type': 'application/json' },
+}));
 
-export const feedbackApi = axios.create({  // 添加这个新的 API 实例
+export const feedbackApi = addAuthInterceptor(axios.create({
   baseURL: FEEDBACK_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+  headers: { 'Content-Type': 'application/json' },
+}));
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers['Authorization'] = `Bearer ${token}`;
-  }
-  return config;
-});
+export const reservationApi = addAuthInterceptor(axios.create({
+  baseURL: RESERVATION_URL,
+  headers: { 'Content-Type': 'application/json' },
+}));
+
+export const venueApi = addAuthInterceptor(axios.create({  
+  baseURL: VENUE_URL,
+  headers: { 'Content-Type': 'application/json' },
+}));
 
 export default api;

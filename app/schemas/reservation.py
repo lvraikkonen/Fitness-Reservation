@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime, date, time
 from app.models.reservation import ReservationStatus
 
@@ -36,6 +36,36 @@ class ReservationRead(BaseModel):
     user_id: int
     time_slot_id: int
     status: ReservationStatus
+    date: date
+    start_time: time
+    end_time: time
+    sport_venue_name: str
+    venue_name: str
+
+    class Config:
+        from_attributes = True
+
+
+class CalendarTimeSlot(BaseModel):
+    id: int
+    date: date
+    start_time: time
+    end_time: time
+    reservations: List[ReservationRead] = []
+
+    class Config:
+        from_attributes = True
+
+
+class VenueCalendarResponse(BaseModel):
+    venue_id: int
+    venue_name: str
+    sport_venue_name: str
+    calendar_data: Dict[date, List[CalendarTimeSlot]]
+    total_count: int
+    total_pages: int
+    current_page: int
+    page_size: int
 
     class Config:
         from_attributes = True

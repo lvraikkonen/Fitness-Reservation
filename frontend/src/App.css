@@ -36,3 +36,20 @@
     transform: rotate(360deg);
   }
 }
+
+.ant-picker-calendar {
+  width: 100%;
+  height: 100%;
+}
+
+.ant-picker-calendar .ant-picker-panel {
+  height: 100%;
+}
+
+.ant-picker-calendar .ant-picker-content {
+  height: calc(100% - 40px); /* 减去日历头部的高度 */
+}
+
+.ant-picker-calendar .ant-picker-content table {
+  height: 100%;
+}
