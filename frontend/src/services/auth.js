@@ -15,13 +15,28 @@ export const login = async (credentials) => {
   return response.data;
 };
 
-export const getCurrentUser = () => {
-  const userStr = localStorage.getItem('user');
-  return userStr ? JSON.parse(userStr) : null;
+export const register = async (userData) => {
+  const response = await api.post('/users/register', userData);
+  return response.data;
+};
+
+export const requestPasswordReset = async (email) => {
+  const response = await api.post('/users/reset-password-request', { email });
+  return response.data;
+};
+
+export const resetPassword = async (token, newPassword) => {
+  const response = await api.post('/users/reset-password', { token, new_password: newPassword });
+  return response.data;
 };
 
 export const logout = () => {
   localStorage.removeItem('token');
+  localStorage.removeItem('user');
+};
+
+export const getCurrentUser = () => {
+  return JSON.parse(localStorage.getItem('user'));
 };
 
 export const isAuthenticated = () => {

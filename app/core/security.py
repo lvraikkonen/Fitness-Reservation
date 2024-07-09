@@ -55,3 +55,24 @@ def decode_access_token(token: str) -> Union[dict, None]:
         return payload
     except JWTError:
         return None
+
+
+def create_password_reset_token(user_id: int) -> str:
+    expire = datetime.utcnow() + timedelta(hours=24)
+    to_encode = {
+        "exp": expire,
+        "user_id": user_id,
+        "type": "password_reset"
+    }
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
+
+
+def verify_password_reset_token(token: str) -> Optional[int]:
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        if payload["type"] != "password_reset":
+            return None
+        user_id = payload["user_id"]
+        return user_id
+    except jwt.JWTError:
+        return None

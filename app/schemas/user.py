@@ -45,3 +45,12 @@ class User(UserBase):
 
     class Config:
         from_attributes = True
+
+
+class UserResetPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class UserResetPassword(BaseModel):
+    token: str
+    new_password: str

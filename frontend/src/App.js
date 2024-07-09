@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { Layout } from 'antd';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 // import VenueManagement from './pages/VenueManagement';
 // import ReservationSystem from './pages/ReservationSystem';
@@ -19,7 +20,8 @@ function App() {
       <Layout style={{ minHeight: '100vh' }}>
         <Content style={{ padding: '0 50px' }}>
           <Routes>
-          <Route path="/" element={<Login />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
             <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
             {/* <Route path="/venues" element={<PrivateRoute><VenueManagement /></PrivateRoute>} />
             <Route path="/reservations" element={<PrivateRoute><ReservationSystem /></PrivateRoute>} />

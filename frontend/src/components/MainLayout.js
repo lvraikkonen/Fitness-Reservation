@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layout, Menu, Breadcrumb, Avatar, Dropdown } from 'antd';
+import { Layout, Menu, Breadcrumb, Avatar } from 'antd';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   HomeOutlined,
@@ -11,8 +11,9 @@ import {
   SettingOutlined,
 } from '@ant-design/icons';
 import { logout, getCurrentUser } from '../services/auth';
+import Logo from './Logo';
 
-const { Header, Content, Footer, Sider } = Layout;
+const { Content, Footer, Sider } = Layout;
 const { SubMenu } = Menu;
 
 const MainLayout = ({ children }) => {
@@ -44,26 +45,25 @@ const MainLayout = ({ children }) => {
     ];
   };
 
-  const userMenu = (
-    <Menu>
-      <Menu.Item key="profile" icon={<UserOutlined />}>
-        <Link to="/profile">Profile</Link>
-      </Menu.Item>
-      <Menu.Item key="settings" icon={<SettingOutlined />}>
-        <Link to="/settings">Settings</Link>
-      </Menu.Item>
-      <Menu.Divider />
-      <Menu.Item key="logout" icon={<LogoutOutlined />} onClick={handleLogout}>
-        Logout
-      </Menu.Item>
-    </Menu>
-  );
-
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed}>
-        <div className="logo" />
-        <Menu theme="dark" defaultSelectedKeys={[location.pathname]} mode="inline">
+      <Sider
+        collapsible
+        collapsed={collapsed}
+        onCollapse={setCollapsed}
+        style={{
+          overflow: 'auto',
+          height: '100vh',
+          position: 'fixed',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <Logo collapsed={collapsed} />
+        <Menu theme="dark" defaultSelectedKeys={[location.pathname]} mode="inline" style={{ flex: 1, paddingBottom: '48px' }}>
           <Menu.Item key="/dashboard" icon={<HomeOutlined />}>
             <Link to="/dashboard">Dashboard</Link>
           </Menu.Item>
@@ -82,13 +82,25 @@ const MainLayout = ({ children }) => {
             <Link to="/feedback">Feedback</Link>
           </Menu.Item>
         </Menu>
+        <Menu theme="dark" mode="inline" selectable={false} style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+          <SubMenu 
+            key="user" 
+            icon={<Avatar icon={<UserOutlined />} />} 
+            title={currentUser.username}
+          >
+            <Menu.Item key="profile" icon={<UserOutlined />}>
+              <Link to="/profile">Profile</Link>
+            </Menu.Item>
+            <Menu.Item key="settings" icon={<SettingOutlined />}>
+              <Link to="/settings">Settings</Link>
+            </Menu.Item>
+            <Menu.Item key="logout" icon={<LogoutOutlined />} onClick={handleLogout}>
+              Logout
+            </Menu.Item>
+          </SubMenu>
+        </Menu>
       </Sider>
-      <Layout className="site-layout">
-        <Header className="site-layout-background" style={{ padding: 0, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-          <Dropdown overlay={userMenu} trigger={['click']}>
-            <Avatar style={{ marginRight: 16, cursor: 'pointer' }} icon={<UserOutlined />} />
-          </Dropdown>
-        </Header>
+      <Layout className="site-layout" style={{ marginLeft: collapsed ? 80 : 200, transition: 'all 0.2s' }}>
         <Content style={{ margin: '0 16px' }}>
           <Breadcrumb style={{ margin: '16px 0' }}>
             {getBreadcrumbItems()}

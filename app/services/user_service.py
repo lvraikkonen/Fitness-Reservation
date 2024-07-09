@@ -4,9 +4,12 @@ from fastapi import Depends, HTTPException
 
 from app.models.user import User
 from app.schemas.user import UserCreate, UserUpdate, UserResponse
-from app.core.security import get_password_hash, verify_password
+from app.core.security import (get_password_hash, verify_password,
+                               create_password_reset_token, verify_password_reset_token)
 from app.deps import get_db
 # from app.services.log_services import log_operation
+from app.core.config import settings
+from app.utils.email import send_reset_password_email
 
 
 class UserService:
@@ -82,3 +85,29 @@ class UserService:
         db_user = self.get_user_by_id(user_id)
         self.db.delete(db_user)
         self.db.commit()
+
+    def request_password_reset(self, email: str) -> bool:
+        user = self.db.query(User).filter(User.email == email).first()
+        if not user:
+            return False
+
+        token = create_password_reset_token(user.id)
+        reset_link = f"{settings.FRONTEND_BASE_URL}/reset-password?token={token}"
+        print(reset_link)
+        send_reset_password_email(user.email, user.username, reset_link)
+
+        return True
+
+    def reset_password(self, token: str, new_password: str) -> bool:
+        user_id = verify_password_reset_token(token)
+        if not user_id:
+            return False
+
+        user = self.db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return False
+
+        user.password = get_password_hash(new_password)
+        self.db.commit()
+
+        return True

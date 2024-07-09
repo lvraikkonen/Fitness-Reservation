@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str = os.getenv("ALGORITHM")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES")
+    SMTP_SERVER: str = os.getenv("SMTP_SERVER")
+    SMTP_PORT: int = os.getenv("SMTP_PORT")
+    SMTP_USERNAME: str = os.getenv("SMTP_USERNAME")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD")
+    SMTP_TLS: bool = os.getenv("SMTP_TLS")
+    FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL")
 
     class Config:
         env_file = ".env"
