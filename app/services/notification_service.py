@@ -46,20 +46,22 @@ class NotificationService:
         self.db.delete(db_notification)
         self.db.commit()
 
-    def notify_user(self, user_id: int, message: str) -> None:
+    def notify_user(self, user_id: int, title: str, content: str, type: str = "RESERVATIONS") -> None:
         user = self.db.query(User).filter(User.id == user_id).first()
         if not user:
             raise ValueError("User not found")
 
         notification = Notification(
             user_id=user_id,
-            message=message
+            title=title,
+            content=content,
+            type=type
         )
         self.db.add(notification)
         self.db.commit()
 
-        self.send_email(user.email, message)
-        self.send_sms(user.phone, message)
+        self.send_email(user.email, content)
+        self.send_sms(user.phone, content)
 
     def send_email(self, email: str, message: str) -> None:
         # 在这里实现发送电子邮件的逻辑

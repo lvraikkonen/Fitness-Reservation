@@ -10,7 +10,7 @@ class Notification(Base):
     user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
     title = Column(String(100), nullable=False)
     content = Column(Text, nullable=False)
-    type = Column(String(20), nullable=False)
+    type = Column(String(50), nullable=False)
     is_read = Column(Boolean, nullable=False, default=False)
     created_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
     updated_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP"))

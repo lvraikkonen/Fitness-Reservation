@@ -28,8 +28,10 @@ def create_sample_data():
         user1 = User(username="claus", email="claus@example.com", password=get_password_hash("123456"), phone="123456", role=0, is_leader=False)
         user2 = User(username="kimi", email="kimi@example.com", password=get_password_hash("123456"), phone="123456", role=0, is_leader=False)
         user3 = User(username="Elon", email="elonmusk@example.com", password=get_password_hash("123456"), phone="123456", role=0, is_leader=True)
+        admin = User(username="Admin", email="admin@example.com", password=get_password_hash("123456"),
+                     phone="123456", role=1, is_leader=False)
 
-        db.add_all([user1, user2, user3])
+        db.add_all([user1, user2, user3, admin])
         db.commit()
 
         # 创建示例运动场馆
@@ -66,11 +68,6 @@ def create_sample_data():
         reservation1 = Reservation(user_id=user1.id, time_slot_id=time_slot1.id, status=ReservationStatus.CONFIRMED)
         reservation2 = Reservation(user_id=user2.id, time_slot_id=time_slot2.id, status=ReservationStatus.PENDING)
         db.add_all([reservation1, reservation2])
-        db.commit()
-
-        # 创建等候列表
-        waiting_list1 = WaitingList(reservation_id=reservation1.id, user_id=user2.id)
-        db.add(waiting_list1)
         db.commit()
 
         # 创建反馈

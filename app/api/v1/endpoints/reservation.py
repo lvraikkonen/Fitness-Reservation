@@ -1,32 +1,54 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import Optional, List, Union
 from datetime import date
 from app.deps import get_db, get_current_user, get_current_admin
 from app.models.user import User
+from app.models.reservation import ReservationStatus
 from app.services.reservation_service import ReservationService
-from app.schemas.reservation import ReservationCreate, ReservationUpdate, ReservationRead
+from app.schemas.reservation import ReservationCreate, ReservationUpdate, ReservationRead, PaginatedReservationResponse
 from app.schemas.reservation import VenueCalendarResponse
-from app.schemas.waiting_list import WaitingList as WaitingListRead
+from app.schemas.waiting_list import WaitingListRead
+from app.core.exceptions import ReservationException, ReservationNotFoundError
+from app.core.exceptions import ReservationConflictError, DatabaseError
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 router = APIRouter()
 
 
-@router.post("/reservations", response_model=Union[ReservationRead, WaitingListRead])
+@router.post("/reservations", response_model=Union[ReservationRead, WaitingListRead], status_code=status.HTTP_201_CREATED)
 def create_reservation(
         reservation: ReservationCreate,
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
+    """
+    Create a new reservation or add to waiting list if there's a conflict.
+
+    This endpoint creates a new reservation for the current user. If there's a conflict
+    (e.g., the time slot is already fully booked), it adds the user to the waiting list.
+    """
     reservation_service = ReservationService(db)
     try:
+        # Ensure the user_id in the reservation matches the current user
+        if reservation.user_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User ID mismatch")
+
         result = reservation_service.create_reservation(reservation)
-        if isinstance(result, dict):
-            return ReservationRead(**result)
-        else:
-            return WaitingListRead.from_orm(result)
+        logger.info(f"Reservation created for user {current_user.id}: {result}")
+        return result
+    except ReservationConflictError as e:
+        logger.warning(f"Reservation conflict for user {current_user.id}: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    except DatabaseError as e:
+        logger.error(f"Database error during reservation creation: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Unexpected error during reservation creation: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/reservations/{reservation_id}", response_model=ReservationRead)
@@ -35,10 +57,24 @@ def get_reservation(
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
+    """
+    Retrieve details of a specific reservation.
+
+    Args:
+        reservation_id (int): The ID of the reservation to retrieve.
+        current_user (User): The authenticated user making the request.
+        db (Session): The database session.
+    """
     reservation_service = ReservationService(db)
     reservation = reservation_service.get_reservation(reservation_id)
+
     if not reservation:
         raise HTTPException(status_code=404, detail="Reservation not found")
+
+    # 检查用户权限（例如，只有预约的用户或管理员可以查看）
+    if reservation.user_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized to view this reservation")
+
     return reservation
 
 
@@ -96,28 +132,52 @@ def get_waiting_list(
 @router.get("/venues/{venue_id}/calendar", response_model=VenueCalendarResponse)
 def get_venue_calendar(
     venue_id: int,
-    start_date: Optional[date] = None,
-    end_date: Optional[date] = None,
+    start_date: Optional[date] = Query(None, description="Start date for calendar data"),
+    end_date: Optional[date] = Query(None, description="End date for calendar data"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    reservation_service = ReservationService(db)
-    calendar_data = reservation_service.get_venue_calendar(venue_id, start_date, end_date)
-    return calendar_data
+    """
+        Retrieve the calendar data for a specific venue.
+
+        This endpoint returns paginated calendar data for the specified venue,
+        including time slots and their reservations. It supports optional date range filtering.
+    """
+    try:
+        reservation_service = ReservationService(db)
+        calendar_data = reservation_service.get_venue_calendar(
+            venue_id, start_date, end_date, page, page_size
+        )
+        return calendar_data
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="An error occurred while retrieving calendar data")
 
 
-@router.get("/reservations/{venue_id}")
-def get_venue_reservations(venue_id: int, db: Session = Depends(get_db)):
-    reservation_service = ReservationService(db)
-    return reservation_service.get_venue_calendar(venue_id)
-
-
-@router.get("/user-reservations", response_model=List[ReservationRead])
-async def get_user_reservations(
+@router.get("/user-reservations", response_model=PaginatedReservationResponse)
+def get_user_reservations(
+    user_id: int,
     venue_id: Optional[int] = None,
-    current_user: User = Depends(get_current_user),
+    status: Optional[ReservationStatus] = None,
+    page: int = 1,
+    page_size: int = 20,
     db: Session = Depends(get_db)
 ):
+    """
+    Retrieve paginated reservations for a specific user.
+
+    This endpoint returns a paginated list of reservations for the specified user.
+    It supports optional filtering by venue and reservation status.
+    """
     reservation_service = ReservationService(db)
-    reservations = reservation_service.get_user_reservations(current_user.id, venue_id)
-    return reservations
+    try:
+        return reservation_service.get_user_reservations(user_id, venue_id, status, page, page_size)
+    except ReservationNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ReservationException as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")

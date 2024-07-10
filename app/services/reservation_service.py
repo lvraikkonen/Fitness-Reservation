@@ -1,6 +1,8 @@
-from typing import List, Union, Dict, Optional, Any
+import logging
+from typing import List, Union, Dict, Optional, Any, Tuple
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import and_, or_
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import and_, or_, select
 from datetime import datetime, timedelta, date
 
 from app.models.sport_venue import SportVenue
@@ -9,12 +11,18 @@ from app.models.reservation import Reservation, ReservationStatus
 from app.models.reservation_time_slot import ReservationTimeSlot
 from app.models.leader_reserved_time import LeaderReservedTime
 from app.models.waiting_list import WaitingList
-from app.schemas.reservation import ReservationCreate, ReservationUpdate, ReservationTimeSlotRead, ReservationRead
+from app.schemas.reservation import (ReservationCreate, ReservationUpdate, ReservationTimeSlotRead,
+                                     ReservationRead, PaginatedReservationResponse)
+from app.schemas.reservation import VenueCalendarResponse, CalendarTimeSlot
 from app.schemas.reservation_time_slot import ReservationTimeSlotBase
-from app.schemas.waiting_list import WaitingListReadWithReservationTimeSlot
+from app.schemas.waiting_list import WaitingListReadWithReservationTimeSlot, WaitingListRead
 
 from app.services.notification_service import NotificationService
 # from app.services.log_services import log_operation
+
+from app.core.exceptions import ReservationException, ReservationNotFoundError, DatabaseError
+
+logger = logging.getLogger(__name__)
 
 
 class ReservationService:
@@ -25,8 +33,32 @@ class ReservationService:
     def get_reservations(self, user_id: int):
         return self.db.query(Reservation).filter(Reservation.user_id == user_id).all()
 
-    def get_reservation(self, reservation_id: int):
-        return self.db.query(Reservation).filter(Reservation.id == reservation_id).first()
+    def get_reservation(self, reservation_id: int) -> Optional[ReservationRead]:
+        reservation = (
+            self.db.query(Reservation)
+            .options(
+                joinedload(Reservation.time_slot)
+                .joinedload(ReservationTimeSlot.venue)
+                .joinedload(Venue.sport_venue)
+            )
+            .filter(Reservation.id == reservation_id)
+            .first()
+        )
+
+        if not reservation:
+            return None
+
+        return ReservationRead(
+            id=reservation.id,
+            user_id=reservation.user_id,
+            time_slot_id=reservation.time_slot_id,
+            status=reservation.status,
+            date=reservation.time_slot.date,
+            start_time=reservation.time_slot.start_time,
+            end_time=reservation.time_slot.end_time,
+            sport_venue_name=reservation.time_slot.venue.sport_venue.name,
+            venue_name=reservation.time_slot.venue.name
+        )
 
     def update_reservation(self, reservation_id: int, reservation: ReservationUpdate):
         db_reservation = self.db.query(Reservation).filter(Reservation.id == reservation_id).first()
@@ -55,35 +87,80 @@ class ReservationService:
 
         return reservations
 
-    def get_user_reservations(self, user_id: int, venue_id: Optional[int] = None):
-        query = (
-            self.db.query(Reservation)
-            .join(ReservationTimeSlot)
-            .join(Venue)
-            .join(SportVenue)
-            .options(joinedload(Reservation.time_slot))
-            .filter(Reservation.user_id == user_id)
-        )
+    def get_user_reservations(
+            self,
+            user_id: int,
+            venue_id: Optional[int] = None,
+            status: Optional[ReservationStatus] = None,
+            page: int = 1,
+            page_size: int = 20
+    ) -> PaginatedReservationResponse:
+        """
+        Retrieve paginated reservations for a specific user.
 
-        if venue_id:
-            query = query.filter(ReservationTimeSlot.venue_id == venue_id)
+        This method fetches reservations for a given user, with optional filtering by venue and status.
+        The results are paginated for efficient data handling.
+        """
+        try:
+            # 构建基础查询
+            query = (
+                select(Reservation)
+                .join(ReservationTimeSlot, Reservation.time_slot_id == ReservationTimeSlot.id)
+                .join(Venue, ReservationTimeSlot.venue_id == Venue.id)
+                .join(SportVenue, Venue.sport_venue_id == SportVenue.id)
+                .options(
+                    joinedload(Reservation.time_slot)
+                    .joinedload(ReservationTimeSlot.venue)
+                    .joinedload(Venue.sport_venue)
+                )
+                .where(Reservation.user_id == user_id)
+            )
 
-        reservations = query.all()
+            if venue_id:
+                query = query.where(Venue.id == venue_id)
 
-        return [
-            {
-                "id": reservation.id,
-                "user_id": reservation.user_id,
-                "time_slot_id": reservation.time_slot_id,
-                "status": reservation.status,
-                "date": reservation.time_slot.date,
-                "start_time": reservation.time_slot.start_time.strftime("%H:%M"),
-                "end_time": reservation.time_slot.end_time.strftime("%H:%M"),
-                "sport_venue_name": reservation.time_slot.venue.sport_venue.name,
-                "venue_name": reservation.time_slot.venue.name
-            }
-            for reservation in reservations
-        ]
+            if status:
+                query = query.where(Reservation.status == status)
+
+            # 执行查询
+            result = self.db.execute(query)
+            reservations = result.unique().scalars().all()
+
+            # 计算总数
+            total_count = self.db.query(Reservation).filter(Reservation.user_id == user_id).count()
+
+            # 应用分页
+            paginated_reservations = reservations[(page - 1) * page_size: page * page_size]
+
+            if not paginated_reservations:
+                raise ReservationNotFoundError(f"No reservations found for user {user_id}")
+
+            reservation_reads = [
+                ReservationRead(
+                    id=r.id,
+                    user_id=r.user_id,
+                    time_slot_id=r.time_slot_id,
+                    status=r.status,
+                    date=r.time_slot.date,
+                    start_time=r.time_slot.start_time,
+                    end_time=r.time_slot.end_time,
+                    sport_venue_name=r.time_slot.venue.sport_venue.name,
+                    venue_name=r.time_slot.venue.name
+                ) for r in paginated_reservations
+            ]
+
+            return PaginatedReservationResponse(
+                reservations=reservation_reads,
+                total_count=total_count,
+                page=page,
+                page_size=page_size
+            )
+        except ReservationException as e:
+            logging.error(f"Reservation error: {str(e)}")
+            raise
+        except Exception as e:
+            logging.error(f"Unexpected error in get_user_reservations: {str(e)}")
+            raise ReservationException("An unexpected error occurred")
 
     def get_venue_calendar(
             self,
@@ -92,14 +169,22 @@ class ReservationService:
             end_date: Optional[date] = None,
             page: int = 1,
             page_size: int = 10
-    ) -> Dict[str, Any]:
+    ) -> VenueCalendarResponse:
+        # 参数验证
+        if start_date and end_date and start_date > end_date:
+            raise ValueError("start_date cannot be later than end_date")
+
+        # 查询场馆
+        venue = self.db.query(Venue).join(SportVenue).filter(Venue.id == venue_id).first()
+        if not venue:
+            raise ValueError(f"Venue with id {venue_id} not found")
+
         # 构建查询对象
         query = (
             self.db.query(ReservationTimeSlot)
             .options(joinedload(ReservationTimeSlot.reservations))
-            .join(Venue)
-            .join(SportVenue)
             .filter(ReservationTimeSlot.venue_id == venue_id)
+            .order_by(ReservationTimeSlot.date, ReservationTimeSlot.start_time)
         )
 
         # 添加日期范围过滤
@@ -114,95 +199,178 @@ class ReservationService:
         offset = (page - 1) * page_size
         reservation_time_slots = query.offset(offset).limit(page_size).all()
 
-        venue = self.db.query(Venue).join(SportVenue).filter(Venue.id == venue_id).first()
-
         # 将预约时段按照日期分组
-        calendar_data: Dict[date, List[Dict[str, Any]]] = {}
+        calendar_data: Dict[date, List[CalendarTimeSlot]] = {}
         for time_slot in reservation_time_slots:
-            time_slot_data = {
-                "id": time_slot.id,
-                "date": time_slot.date,
-                "start_time": time_slot.start_time,
-                "end_time": time_slot.end_time,
-                "reservations": [
-                    {
-                        "id": res.id,
-                        "user_id": res.user_id,
-                        "time_slot_id": res.time_slot_id,
-                        "status": res.status,
-                        "date": time_slot.date,
-                        "start_time": time_slot.start_time,
-                        "end_time": time_slot.end_time,
-                        "sport_venue_name": venue.sport_venue.name,
-                        "venue_name": venue.name
-                    }
+            time_slot_data = CalendarTimeSlot(
+                id=time_slot.id,
+                date=time_slot.date,
+                start_time=time_slot.start_time,
+                end_time=time_slot.end_time,
+                reservations=[
+                    ReservationRead(
+                        id=res.id,
+                        user_id=res.user_id,
+                        time_slot_id=res.time_slot_id,
+                        status=res.status,
+                        date=time_slot.date,
+                        start_time=time_slot.start_time,
+                        end_time=time_slot.end_time,
+                        sport_venue_name=venue.sport_venue.name,
+                        venue_name=venue.name
+                    )
                     for res in time_slot.reservations
                 ]
-            }
+            )
 
             if time_slot.date not in calendar_data:
                 calendar_data[time_slot.date] = []
             calendar_data[time_slot.date].append(time_slot_data)
 
-        return {
-            "venue_id": venue_id,
-            "venue_name": venue.name,
-            "sport_venue_name": venue.sport_venue.name,
-            "calendar_data": calendar_data,
-            "total_count": total_count,
-            "total_pages": total_pages,
-            "current_page": page,
-            "page_size": page_size
-        }
+        return VenueCalendarResponse(
+            venue_id=venue_id,
+            venue_name=venue.name,
+            sport_venue_name=venue.sport_venue.name,
+            calendar_data=calendar_data,
+            total_count=total_count,
+            total_pages=total_pages,
+            current_page=page,
+            page_size=page_size
+        )
 
-    def check_reservation_conflict(self, venue_id: int, reservation_data: ReservationTimeSlotBase) -> bool:
-        # 检查给定的预约时段是否与现有的预约存在冲突
-        conflicting_reservations = self.db.query(Reservation).join(ReservationTimeSlot).filter(
+    def check_reservation_conflict(self, venue_id: int, reservation_data: ReservationTimeSlotBase) -> Tuple[bool, Optional[str]]:
+        # 参数验证
+        if reservation_data.start_time >= reservation_data.end_time:
+            return True, "Invalid time range: start time must be before end time"
+
+        # 获取场馆信息
+        venue = self.db.query(Venue).filter(Venue.id == venue_id).first()
+        if not venue:
+            return True, f"Venue with id {venue_id} not found"
+
+        # 检查与现有预约的冲突
+        conflicting_reservations = self._get_conflicting_reservations(venue_id, reservation_data)
+        conflicting_count = conflicting_reservations.count()
+
+        # 检查可用名额
+        if conflicting_count >= venue.capacity:
+            return True, "No available slots for this time period"
+
+        # 检查领导预留时间冲突
+        leader_conflict = self._get_conflicting_leader_reserved_time(venue_id, reservation_data)
+        if leader_conflict:
+            return True, "Conflict with leader reserved time"
+
+        return False, None
+
+    def _get_conflicting_reservations(self, venue_id: int, reservation_data: ReservationTimeSlotBase):
+        """检查与现有预约的冲突"""
+        return self.db.query(Reservation).join(ReservationTimeSlot).filter(
             ReservationTimeSlot.venue_id == venue_id,
             ReservationTimeSlot.date == reservation_data.date,
             ReservationTimeSlot.start_time < reservation_data.end_time,
             ReservationTimeSlot.end_time > reservation_data.start_time,
             Reservation.status != ReservationStatus.CANCELLED
-        ).count()
+        )
 
-        # 获取场馆的容量
-        venue_capacity = self.db.query(Venue).filter(Venue.id == venue_id).first().capacity
-
-        # 检查预约时段的可用名额数量
-        available_slots = venue_capacity - conflicting_reservations
-
-        # 如果没有可用名额,则存在冲突
-        if available_slots <= 0:
-            return True
-
-        # 检查给定的预约时段是否与领导预留时间存在冲突
-        conflicting_leader_reserved_time = self.db.query(LeaderReservedTime).filter(
+    def _get_conflicting_leader_reserved_time(self, venue_id: int, reservation_data: ReservationTimeSlotBase):
+        """检查领导预留时间冲突"""
+        return self.db.query(LeaderReservedTime).filter(
             LeaderReservedTime.venue_id == venue_id,
             LeaderReservedTime.day_of_week == reservation_data.date.weekday(),
             LeaderReservedTime.start_time < reservation_data.end_time,
             LeaderReservedTime.end_time > reservation_data.start_time
         ).first()
 
-        # 如果与领导预留时间存在冲突,则存在冲突
-        if conflicting_leader_reserved_time:
-            return True
-
-        # 如果没有冲突,则不存在冲突
-        return False
-
     # 创建预约
-    def create_reservation(self, reservation_data: ReservationCreate) -> Union[dict, WaitingList]:
-        # 创建 ReservationTimeSlotBase 对象
-        time_slot_data = ReservationTimeSlotBase(
-            date=reservation_data.date,
-            start_time=reservation_data.start_time,
-            end_time=reservation_data.end_time
-        )
+    def create_reservation(self, reservation_data: ReservationCreate) -> Union[ReservationRead, WaitingListRead]:
+        try:
+            if self.db.in_transaction():
+                logger.warning("A transaction is already in progress")
+                result = self._create_reservation_logic(reservation_data)
+                self.db.commit()
+            else:
+                with self.db.begin():
+                    result = self._create_reservation_logic(reservation_data)
+                    self.db.commit()
 
-        # 检查预约时段是否存在冲突
-        conflict = self.check_reservation_conflict(reservation_data.venue_id, time_slot_data)
+            # 验证数据是否被正确保存
+            if isinstance(result, ReservationRead):
+                verification = self.db.query(Reservation).filter(Reservation.id == result.id).first()
+                if not verification:
+                    raise DatabaseError("Reservation was not found in the database after creation")
 
-        # 查找预约时段
+            return result
+        except SQLAlchemyError as e:
+            logger.error(f"Database error occurred while creating reservation: {str(e)}")
+            self.db.rollback()
+            raise DatabaseError(f"Database error occurred while creating reservation: {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error during reservation creation: {str(e)}")
+            self.db.rollback()
+            raise
+
+    def _create_reservation_logic(self, reservation_data: ReservationCreate) -> Union[ReservationRead, WaitingListRead]:
+        try:
+            # 创建 ReservationTimeSlotBase 对象
+            time_slot_data = ReservationTimeSlotBase(
+                date=reservation_data.date,
+                start_time=reservation_data.start_time,
+                end_time=reservation_data.end_time
+            )
+
+            # 检查预约冲突
+            conflict, conflict_reason = self.check_reservation_conflict(reservation_data.venue_id, time_slot_data)
+
+            if conflict:
+                logger.info(f"Reservation conflict detected: {conflict_reason}. Adding to waiting list.")
+                waiting_list_item = self.join_waiting_list(
+                    venue_id=reservation_data.venue_id,
+                    reservation_data=time_slot_data,
+                    user_id=reservation_data.user_id
+                )
+                return WaitingListRead.from_orm(waiting_list_item)
+            else:
+                # 获取或创建时间段
+                reservation_time_slot = self._get_or_create_time_slot(reservation_data)
+
+                # 创建新预约
+                new_reservation = Reservation(
+                    user_id=reservation_data.user_id,
+                    time_slot_id=reservation_time_slot.id,
+                    status=ReservationStatus.PENDING
+                )
+                self.db.add(new_reservation)
+                self.db.flush()
+
+                logger.info(f"New reservation created with ID: {new_reservation.id}")
+
+                # 验证预约是否被正确保存
+                reservation_with_details = self._get_reservation_details(new_reservation.id)
+                if not reservation_with_details:
+                    raise ValueError(f"Failed to retrieve created reservation with ID: {new_reservation.id}")
+
+                # 创建并返回 ReservationRead 对象
+                return ReservationRead(
+                    id=reservation_with_details.id,
+                    user_id=reservation_with_details.user_id,
+                    time_slot_id=reservation_with_details.time_slot_id,
+                    status=reservation_with_details.status,
+                    date=reservation_with_details.time_slot.date,
+                    start_time=reservation_with_details.time_slot.start_time,
+                    end_time=reservation_with_details.time_slot.end_time,
+                    sport_venue_name=reservation_with_details.time_slot.venue.sport_venue.name,
+                    venue_name=reservation_with_details.time_slot.venue.name
+                )
+
+        except SQLAlchemyError as e:
+            logger.error(f"Database error occurred while creating reservation: {str(e)}")
+            raise DatabaseError(f"Failed to create reservation: {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error occurred while creating reservation: {str(e)}")
+            raise
+
+    def _get_or_create_time_slot(self, reservation_data: ReservationCreate) -> ReservationTimeSlot:
         reservation_time_slot = self.db.query(ReservationTimeSlot).filter(
             ReservationTimeSlot.venue_id == reservation_data.venue_id,
             ReservationTimeSlot.date == reservation_data.date,
@@ -210,7 +378,6 @@ class ReservationService:
             ReservationTimeSlot.end_time == reservation_data.end_time
         ).first()
 
-        # 如果预约时段不存在,则创建一个新的预约时段
         if not reservation_time_slot:
             reservation_time_slot = ReservationTimeSlot(
                 venue_id=reservation_data.venue_id,
@@ -219,50 +386,21 @@ class ReservationService:
                 end_time=reservation_data.end_time
             )
             self.db.add(reservation_time_slot)
-            self.db.flush()  # 执行插入操作,获取新创建的预约时段的 ID
+            self.db.flush()
 
-        if conflict:
-            # 如果存在冲突,将用户加入等待列表
-            waiting_list_item = self.join_waiting_list(
-                venue_id=reservation_data.venue_id,
-                reservation_data=time_slot_data,
-                user_id=reservation_data.user_id
-            )
-            return waiting_list_item
-        else:
-            # 如果没有冲突且有可用名额,创建新的预约记录
-            new_reservation = Reservation(
-                user_id=reservation_data.user_id,
-                time_slot_id=reservation_time_slot.id,
-                status=ReservationStatus.PENDING
-            )
-            self.db.add(new_reservation)
-            self.db.commit()
-            self.db.refresh(new_reservation)
+        return reservation_time_slot
 
-            # 获取关联的时间段、场地和运动场地信息
-            reservation_with_details = (
-                self.db.query(Reservation)
-                .options(
-                    joinedload(Reservation.time_slot)
-                    .joinedload(ReservationTimeSlot.venue)
-                    .joinedload(Venue.sport_venue)
-                )
-                .filter(Reservation.id == new_reservation.id)
-                .first()
+    def _get_reservation_details(self, reservation_id: int) -> Reservation:
+        return (
+            self.db.query(Reservation)
+            .options(
+                joinedload(Reservation.time_slot)
+                .joinedload(ReservationTimeSlot.venue)
+                .joinedload(Venue.sport_venue)
             )
-
-            return {
-                "id": reservation_with_details.id,
-                "user_id": reservation_with_details.user_id,
-                "time_slot_id": reservation_with_details.time_slot_id,
-                "status": reservation_with_details.status,
-                "date": reservation_with_details.time_slot.date,
-                "start_time": reservation_with_details.time_slot.start_time,
-                "end_time": reservation_with_details.time_slot.end_time,
-                "sport_venue_name": reservation_with_details.time_slot.venue.sport_venue.name,
-                "venue_name": reservation_with_details.time_slot.venue.name
-            }
+            .filter(Reservation.id == reservation_id)
+            .first()
+        )
 
     # 取消预约
     def cancel_reservation(self, reservation_id: int) -> None:
@@ -435,39 +573,83 @@ class ReservationService:
     - 管理员或系统在预约开始前的一定时间(例如48小时)自动确认预约。
     - 用户在预约开始时到达场馆,工作人员手动确认预约。
     """
+
     def confirm_reservation(self, reservation_id: int) -> None:
-        reservation = self.db.query(Reservation).filter(Reservation.id == reservation_id).first()
+        try:
+            # 检查是否已在事务中
+            if self.db.in_transaction():
+                logger.info("Using existing transaction for reservation confirmation.")
+                self._confirm_reservation_logic(reservation_id)
+            else:
+                logger.info("Starting new transaction for reservation confirmation.")
+                with self.db.begin():
+                    self._confirm_reservation_logic(reservation_id)
+
+            logger.info(f"Reservation {reservation_id} has been confirmed.")
+        except SQLAlchemyError as e:
+            logger.error(f"Database error occurred while confirming reservation {reservation_id}: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"Error occurred while confirming reservation {reservation_id}: {str(e)}")
+            raise
+
+    def _confirm_reservation_logic(self, reservation_id: int) -> None:
+        reservation = self.db.query(Reservation).filter(Reservation.id == reservation_id).with_for_update().first()
         if not reservation:
-            raise ValueError("Reservation not found")
+            raise ValueError(f"Reservation with id {reservation_id} not found")
 
         if reservation.status != ReservationStatus.PENDING:
-            raise ValueError("Reservation is not in pending status")
+            raise ValueError(f"Reservation {reservation_id} is not in pending status")
 
-        # 检查确认预约的截止时间(例如,预约创建后的24小时内)
         if reservation.created_at < datetime.now() - timedelta(hours=24):
-            raise ValueError("Reservation confirmation deadline has passed")
+            raise ValueError(f"Confirmation deadline has passed for reservation {reservation_id}")
 
         reservation.status = ReservationStatus.CONFIRMED
-        self.db.commit()
 
         # 通知用户预约已确认
-        self.notification_service.notify_user(reservation.user_id, "Your reservation has been confirmed.")
+        self.notification_service.notify_user(
+            user_id=reservation.user_id,
+            title="Reservation Confirmed",
+            content=f"Your reservation {reservation_id} has been confirmed.",
+            type="RESERVATION_CONFIRMATION"
+        )
 
     def auto_confirm_reservations(self) -> None:
+        try:
+            if self.db.in_transaction():
+                logger.info("Using existing transaction for auto-confirmation.")
+                self._auto_confirm_reservations_logic()
+            else:
+                logger.info("Starting new transaction for auto-confirmation.")
+                with self.db.begin():
+                    self._auto_confirm_reservations_logic()
+
+            logger.info("Auto-confirmation process completed.")
+        except SQLAlchemyError as e:
+            logger.error(f"Database error occurred during auto-confirmation: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"Error occurred during auto-confirmation: {str(e)}")
+            raise
+
+    def _auto_confirm_reservations_logic(self) -> None:
         # 查询所有未确认且开始时间在未来48小时内的预约
         pending_reservations = self.db.query(Reservation).join(ReservationTimeSlot).filter(
             Reservation.status == ReservationStatus.PENDING,
             ReservationTimeSlot.start_time < datetime.now() + timedelta(hours=48),
             ReservationTimeSlot.start_time > datetime.now()
-        ).all()
+        ).with_for_update().all()
 
         for reservation in pending_reservations:
             reservation.status = ReservationStatus.CONFIRMED
-            self.db.commit()
+            self.notification_service.notify_user(
+                user_id=reservation.user_id,
+                title="Reservation Auto-Confirmed",
+                content=f"Your reservation {reservation.id} has been automatically confirmed.",
+                type="AUTO_CONFIRMATION"
+            )
 
-            # 通知用户预约已自动确认
-            self.notification_service.notify_user(reservation.user_id,
-                                                  "Your reservation has been automatically confirmed.")
+        logger.info(f"Auto-confirmed {len(pending_reservations)} reservations.")
 
     # 场馆临时关闭或预约时段调整
     def handle_venue_closure_or_time_slot_adjustment(self, venue_id: int, start_date: datetime,

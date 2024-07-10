@@ -46,6 +46,13 @@ class ReservationRead(BaseModel):
         from_attributes = True
 
 
+class PaginatedReservationResponse(BaseModel):
+    reservations: List[ReservationRead]
+    total_count: int
+    page: int
+    page_size: int
+
+
 class CalendarTimeSlot(BaseModel):
     id: int
     date: date

@@ -4,12 +4,22 @@ from app.schemas.reservation import ReservationTimeSlotRead
 
 
 class WaitingListBase(BaseModel):
-    pass
+    reservation_id: int
+    user_id: int
 
 
 class WaitingListCreate(WaitingListBase):
-    reservation_id: int
-    user_id: int
+    pass
+
+
+class WaitingListRead(WaitingListBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    reservation_time_slot: ReservationTimeSlotRead
+
+    class Config:
+        from_attributes = True
 
 
 class WaitingListUpdate(WaitingListBase):

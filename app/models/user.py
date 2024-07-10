@@ -25,3 +25,7 @@ class User(Base):
     notifications = relationship("Notification", back_populates="user")
     leader_reserved_times = relationship("LeaderReservedTime", back_populates="user")
     waiting_lists = relationship("WaitingList", back_populates="user")
+
+    @property
+    def is_admin(self):
+        return self.role == 1
