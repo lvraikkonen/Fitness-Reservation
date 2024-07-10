@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD")
     SMTP_TLS: bool = os.getenv("SMTP_TLS")
     FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL")
+    CANCELLATION_DEADLINE_HOURS: int = os.getenv("CANCELLATION_DEADLINE_HOURS")
 
     class Config:
         env_file = ".env"

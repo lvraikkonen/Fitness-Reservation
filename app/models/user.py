@@ -29,3 +29,7 @@ class User(Base):
     @property
     def is_admin(self):
         return self.role == 1
+
+    @classmethod
+    def admin_role(cls):
+        return 1

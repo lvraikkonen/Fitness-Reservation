@@ -19,6 +19,7 @@ class Reservation(Base):
     status = Column(SqlAlchemyEnum(ReservationStatus), default=ReservationStatus.PENDING, nullable=False)
     created_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
     updated_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP"))
+    cancelled_at = Column(TIMESTAMP, nullable=True)
 
     user = relationship("User", back_populates="reservations")
     time_slot = relationship("ReservationTimeSlot", back_populates="reservations")

@@ -4,8 +4,10 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import and_, or_, select
 from datetime import datetime, timedelta, date
+from app.core.config import settings
 
 from app.models.sport_venue import SportVenue
+from app.models.user import User
 from app.models.venue import Venue
 from app.models.reservation import Reservation, ReservationStatus
 from app.models.reservation_time_slot import ReservationTimeSlot
@@ -23,6 +25,10 @@ from app.services.notification_service import NotificationService
 from app.core.exceptions import ReservationException, ReservationNotFoundError, DatabaseError
 
 logger = logging.getLogger(__name__)
+
+
+# 常量定义
+CANCELLATION_DEADLINE_HOURS = settings.CANCELLATION_DEADLINE_HOURS  # 允许取消的截止时间（小时）
 
 
 class ReservationService:
@@ -285,14 +291,9 @@ class ReservationService:
     # 创建预约
     def create_reservation(self, reservation_data: ReservationCreate) -> Union[ReservationRead, WaitingListRead]:
         try:
-            if self.db.in_transaction():
-                logger.warning("A transaction is already in progress")
-                result = self._create_reservation_logic(reservation_data)
-                self.db.commit()
-            else:
-                with self.db.begin():
-                    result = self._create_reservation_logic(reservation_data)
-                    self.db.commit()
+            result = self._create_reservation_logic(reservation_data)
+            # 显式提交事务
+            self.db.commit()
 
             # 验证数据是否被正确保存
             if isinstance(result, ReservationRead):
@@ -300,14 +301,20 @@ class ReservationService:
                 if not verification:
                     raise DatabaseError("Reservation was not found in the database after creation")
 
+            # 发送通知（如果需要）
+            if isinstance(result, ReservationRead):
+                self._notify_reservation_created(result)
+            elif isinstance(result, WaitingListRead):
+                self._notify_added_to_waiting_list(result)
+
             return result
         except SQLAlchemyError as e:
-            logger.error(f"Database error occurred while creating reservation: {str(e)}")
             self.db.rollback()
+            logger.error(f"Database error occurred while creating reservation: {str(e)}")
             raise DatabaseError(f"Database error occurred while creating reservation: {str(e)}")
         except Exception as e:
-            logger.error(f"Unexpected error during reservation creation: {str(e)}")
             self.db.rollback()
+            logger.error(f"Unexpected error during reservation creation: {str(e)}")
             raise
 
     def _create_reservation_logic(self, reservation_data: ReservationCreate) -> Union[ReservationRead, WaitingListRead]:
@@ -370,6 +377,14 @@ class ReservationService:
             logger.error(f"Unexpected error occurred while creating reservation: {str(e)}")
             raise
 
+    def _notify_reservation_created(self, reservation: ReservationRead):
+        # 实现发送预约创建通知的逻辑
+        pass
+
+    def _notify_added_to_waiting_list(self, waiting_list_item: WaitingListRead):
+        # 实现发送加入等待列表通知的逻辑
+        pass
+
     def _get_or_create_time_slot(self, reservation_data: ReservationCreate) -> ReservationTimeSlot:
         reservation_time_slot = self.db.query(ReservationTimeSlot).filter(
             ReservationTimeSlot.venue_id == reservation_data.venue_id,
@@ -403,36 +418,94 @@ class ReservationService:
         )
 
     # 取消预约
-    def cancel_reservation(self, reservation_id: int) -> None:
-        reservation = self.db.query(Reservation).filter(Reservation.id == reservation_id).first()
-        if not reservation:
-            raise ValueError("Reservation not found")
+    def cancel_reservation(self, reservation_id: int, user_id: int) -> None:
+        try:
+            reservation = self.db.query(Reservation).filter(Reservation.id == reservation_id).with_for_update().first()
+            if not reservation:
+                raise ValueError(f"Reservation with id {reservation_id} not found")
 
-        # 将预约状态更新为已取消
-        reservation.status = ReservationStatus.CANCELLED
-        self.db.commit()
+            # 检查用户权限
+            if not self._can_cancel_reservation(reservation, user_id):
+                raise ValueError(f"User {user_id} is not authorized to cancel reservation {reservation_id}")
 
-        # 获取预约时段的等待列表
+            # 检查预约状态
+            if reservation.status == ReservationStatus.CANCELLED:
+                raise ValueError(f"Reservation {reservation_id} is already cancelled")
+
+            # 检查取消时间
+            if not self._is_cancellation_allowed(reservation):
+                raise ValueError(f"Cannot cancel reservation {reservation_id} as it's too close to the start time")
+
+            # 更新预约状态为已取消
+            reservation.status = ReservationStatus.CANCELLED
+            reservation.cancelled_at = datetime.now()  # 记录取消时间
+            logger.info(f"Reservation {reservation_id} has been cancelled by user {user_id}")
+
+            self._handle_waiting_list(reservation)
+
+            # 显式提交事务
+            self.db.commit()
+
+            # 通知原预约用户预约已取消
+            self._notify_cancellation(reservation)
+
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Database error occurred while cancelling reservation {reservation_id}: {str(e)}")
+            raise DatabaseError(f"Failed to cancel reservation: {str(e)}")
+
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Error occurred while cancelling reservation {reservation_id}: {str(e)}")
+            raise
+
+    def _can_cancel_reservation(self, reservation: Reservation, user_id: int) -> bool:
+        # 检查用户是否是预约的创建者或管理员
+        is_creator = reservation.user_id == user_id
+        is_admin = self.db.query(User).filter(User.id == user_id, User.role == User.admin_role()).first() is not None
+        return is_creator or is_admin
+
+    def _is_cancellation_allowed(self, reservation: Reservation) -> bool:
+        # 检查是否在允许取消的时间范围内
+        cancellation_deadline = reservation.time_slot.start_time - timedelta(hours=CANCELLATION_DEADLINE_HOURS)
+        return datetime.now() <= cancellation_deadline
+
+    def _handle_waiting_list(self, cancelled_reservation: Reservation) -> None:
         waiting_list = self.db.query(WaitingList).filter(
-            WaitingList.reservation_id == reservation.time_slot_id).order_by(WaitingList.created_at).all()
+            WaitingList.reservation_id == cancelled_reservation.time_slot_id
+        ).order_by(WaitingList.created_at).all()
 
         if waiting_list:
             # 如果等待列表不为空,将第一个等待的用户分配到预约
             waiting_user = waiting_list[0]
             new_reservation = Reservation(
                 user_id=waiting_user.user_id,
-                time_slot_id=reservation.time_slot_id,
+                time_slot_id=cancelled_reservation.time_slot_id,
                 status=ReservationStatus.PENDING
             )
             self.db.add(new_reservation)
             self.db.delete(waiting_user)
-            self.db.commit()
+            logger.info(f"User {waiting_user.user_id} moved from waiting list to reservation for time slot {cancelled_reservation.time_slot_id}")
 
-            # 通知新分配的用户他们的预约现在可用
-            self.notification_service.notify_user(waiting_user.user_id, "Your reservation is now available!")
+            self._notify_reservation_available(waiting_user.user_id, new_reservation.id)
 
-        # 通知原预约用户预约已取消
-        self.notification_service.notify_user(reservation.user_id, "Your reservation has been cancelled.")
+    def _notify_cancellation(self, reservation: Reservation) -> None:
+        self.notification_service.notify_user(
+            user_id=reservation.user_id,
+            title="Reservation Canceled",
+            content=f"Your reservation {reservation.id} has been canceled.",
+            type="RES_CANCEL"
+        )
+        logger.info(f"Cancellation notification sent to user {reservation.user_id} for reservation {reservation.id}")
+
+    def _notify_reservation_available(self, user_id: int, reservation_id: int) -> None:
+        self.notification_service.notify_user(
+            user_id=user_id,
+            title="Reservation Available",
+            content=f"Your reservation {reservation_id} is now available!",
+            type="RES_AVAIL"
+        )
+        logger.info(f"Reservation available notification sent to user {user_id} for reservation {reservation_id}")
 
     # 加入预约等候列表
     def join_waiting_list(self, venue_id: int, reservation_data: ReservationTimeSlotBase, user_id: int) -> WaitingList:
