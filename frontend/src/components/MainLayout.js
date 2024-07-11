@@ -10,7 +10,7 @@ import {
   UserOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
-import { logout, getCurrentUser } from '../services/auth';
+import { useAuth } from '../contexts/AuthContext';
 import Logo from './Logo';
 
 const { Content, Footer, Sider } = Layout;
@@ -20,7 +20,7 @@ const MainLayout = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const currentUser = getCurrentUser();
+  const { user, logout } = useAuth();
 
   const handleLogout = () => {
     logout();
@@ -44,6 +44,10 @@ const MainLayout = ({ children }) => {
       ...breadcrumbItems,
     ];
   };
+
+  if (!user) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -73,7 +77,7 @@ const MainLayout = ({ children }) => {
           <Menu.Item key="/reservations" icon={<CalendarOutlined />}>
             <Link to="/reservations">Reservations</Link>
           </Menu.Item>
-          {currentUser.role === 'admin' && (
+          {user.role === 'admin' && (
             <Menu.Item key="/statistics" icon={<BarChartOutlined />}>
               <Link to="/statistics">Statistics</Link>
             </Menu.Item>
@@ -86,7 +90,7 @@ const MainLayout = ({ children }) => {
           <SubMenu 
             key="user" 
             icon={<Avatar icon={<UserOutlined />} />} 
-            title={currentUser.username}
+            title={user.username}
           >
             <Menu.Item key="profile" icon={<UserOutlined />}>
               <Link to="/profile">Profile</Link>

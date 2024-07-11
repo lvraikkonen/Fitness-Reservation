@@ -1,10 +1,11 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8000/api/v1';
-const STATS_URL = 'http://localhost:8000/stats';
-const FEEDBACK_URL = 'http://localhost:8000/feedback';
-const RESERVATION_URL = 'http://localhost:8000/api/v1/reservations'
-const VENUE_URL = 'http://localhost:8000/api/v1/venues'
+const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_URL = `${BASE_URL}/api/v1`;
+const STATS_URL = `${BASE_URL}/stats`;
+const FEEDBACK_URL = `${BASE_URL}/feedback`;
+
+axios.defaults.baseURL = BASE_URL;
 
 const addAuthInterceptor = (apiInstance) => {
   apiInstance.interceptors.request.use((config) => {
@@ -14,6 +15,19 @@ const addAuthInterceptor = (apiInstance) => {
     }
     return config;
   });
+
+  apiInstance.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      if (error.response && error.response.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
+      return Promise.reject(error);
+    }
+  );
+
   return apiInstance;
 };
 
@@ -30,12 +44,18 @@ export const feedbackApi = addAuthInterceptor(axios.create({
 }));
 
 export const reservationApi = addAuthInterceptor(axios.create({
-  baseURL: RESERVATION_URL,
+  baseURL: `${API_URL}/reservations`,
   headers: { 'Content-Type': 'application/json' },
 }));
 
 export const venueApi = addAuthInterceptor(axios.create({  
-  baseURL: VENUE_URL,
+  baseURL: `${API_URL}/venues`,
+  headers: { 'Content-Type': 'application/json' },
+}));
+
+// 新增用户相关的 API
+export const userApi = addAuthInterceptor(axios.create({
+  baseURL: `${API_URL}/users`,
   headers: { 'Content-Type': 'application/json' },
 }));
 

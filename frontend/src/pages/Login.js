@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { Form, Input, Button, message, Modal } from 'antd';
 import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
-import { Link, useNavigate } from 'react-router-dom';
-import { login, requestPasswordReset, resetPassword } from '../services/auth';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { requestPasswordReset, resetPassword } from '../services/auth';
 
 const Login = () => {
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
   const [isResetModalVisible, setIsResetModalVisible] = useState(false);
   const [isNewPasswordModalVisible, setIsNewPasswordModalVisible] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
@@ -16,18 +19,22 @@ const Login = () => {
   const onFinish = async (values) => {
     setLoading(true);
     try {
-      const data = await login(values);
+      const user = await login(values);
       message.success('Login successful');
-      localStorage.setItem('user', JSON.stringify(data.user));
-      navigate('/dashboard');
+      
+      // 根据用户角色决定跳转路径
+      const from = location.state?.from?.pathname || 
+                   (user.role === 1 ? '/admin' : '/dashboard');
+      
+      navigate(from, { replace: true });
     } catch (error) {
-      console.error('Login error:', error.response?.data);
-      message.error('Login failed: ' + (error.response?.data?.detail || 'Unknown error'));
+      console.error('Login error:', error);
+      message.error('Login failed: ' + (error.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
   };
-
+  
   const showResetModal = () => {
     setIsResetModalVisible(true);
   };
@@ -37,8 +44,6 @@ const Login = () => {
       await requestPasswordReset(resetEmail);
       message.success('Password reset link sent to your email');
       setIsResetModalVisible(false);
-      // 在实际应用中，这里应该提示用户检查邮箱并点击链接
-      // 为了演示，我们直接打开新密码输入模态框
       setIsNewPasswordModalVisible(true);
     } catch (error) {
       message.error('Failed to send reset link: ' + error.message);

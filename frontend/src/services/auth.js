@@ -10,9 +10,10 @@ export const login = async (credentials) => {
       'Content-Type': 'application/x-www-form-urlencoded'
     }
   });
-  const { access_token } = response.data;
+  const { access_token, user } = response.data;
   localStorage.setItem('token', access_token);
-  return response.data;
+  localStorage.setItem('user', JSON.stringify(user));
+  return user;
 };
 
 export const register = async (userData) => {
@@ -63,5 +64,21 @@ export const updateUserSettings = async (settingsData) => {
   } catch (error) {
     console.error('Error updating user settings:', error);
     throw error;
+  }
+};
+
+export const checkAuthStatus = async () => {
+  const token = localStorage.getItem('token');
+  if (!token) return null;
+  
+  try {
+    const response = await api.get('/users/me');
+    const user = response.data;
+    localStorage.setItem('user', JSON.stringify(user));
+    return user;
+  } catch (error) {
+    console.error('Failed to verify auth status:', error);
+    logout();
+    return null;
   }
 };

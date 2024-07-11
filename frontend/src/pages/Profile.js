@@ -1,32 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Card, Avatar, Typography, Form, Input, Button, message } from 'antd';
 import { UserOutlined } from '@ant-design/icons';
 import MainLayout from '../components/MainLayout';
-import { getCurrentUser, updateUserProfile } from '../services/auth';
+import { useAuth } from '../contexts/AuthContext';
+import { updateUserProfile } from '../services/auth';
 
 const { Title } = Typography;
 
 const Profile = () => {
-  const [user, setUser] = useState(null);
+  const { user, updateUser } = useAuth();
   const [form] = Form.useForm();
 
   useEffect(() => {
-    const currentUser = getCurrentUser();
-    setUser(currentUser);
-    form.setFieldsValue(currentUser);
-  }, [form]);
+    if (user) {
+      form.setFieldsValue(user);
+    }
+  }, [user, form]);
 
   const onFinish = async (values) => {
     try {
-      await updateUserProfile(values);
+      const updatedUser = await updateUserProfile(values);
+      updateUser(updatedUser);
       message.success('Profile updated successfully');
-      setUser({ ...user, ...values });
     } catch (error) {
-      message.error('Failed to update profile');
+      message.error('Failed to update profile: ' + error.message);
     }
   };
 
-  if (!user) return null;
+  if (!user) return <div>Loading...</div>;
 
   return (
     <MainLayout>
