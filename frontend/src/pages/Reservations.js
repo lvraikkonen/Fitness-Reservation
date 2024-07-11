@@ -15,6 +15,10 @@ const Reservations = () => {
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  const [totalReservations, setTotalReservations] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
   const calendarRef = useRef(null);
   const listRef = useRef(null);
 
@@ -43,11 +47,14 @@ const Reservations = () => {
     }
   };
 
-  const loadUserReservations = async () => {
+  const loadUserReservations = async (page = 1) => {
     setLoading(true);
     try {
-      const data = await fetchUserReservations(selectedVenue);
-      setReservations(data);
+      const data = await fetchUserReservations(selectedVenue, page, pageSize);
+      setReservations(data.reservations);
+      setTotalReservations(data.total_count);
+      setCurrentPage(data.page);
+      setPageSize(data.page_size);
     } catch (error) {
       message.error('Failed to load reservations');
     } finally {
@@ -57,6 +64,10 @@ const Reservations = () => {
 
   const handleVenueChange = (venueId) => {
     setSelectedVenue(venueId);
+  };
+
+  const handlePageChange = (page) => {
+    loadUserReservations(page);
   };
 
   const handleCreateReservation = async (reservationData) => {
@@ -119,6 +130,10 @@ const Reservations = () => {
                   reservations={reservations}
                   onCancel={handleCancelReservation}
                   loading={loading}
+                  total={totalReservations}
+                  current={currentPage}
+                  pageSize={pageSize}
+                  onPageChange={handlePageChange}
                 />
               </Col>
             </>

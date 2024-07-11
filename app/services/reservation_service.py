@@ -466,8 +466,16 @@ class ReservationService:
         return is_creator or is_admin
 
     def _is_cancellation_allowed(self, reservation: Reservation) -> bool:
-        # 检查是否在允许取消的时间范围内
-        cancellation_deadline = reservation.time_slot.start_time - timedelta(hours=CANCELLATION_DEADLINE_HOURS)
+        # 获取关联的 ReservationTimeSlot
+        time_slot = reservation.time_slot
+
+        # 组合日期和开始时间
+        reservation_datetime = datetime.combine(time_slot.date, time_slot.start_time)
+
+        # 计算取消截止时间
+        cancellation_deadline = reservation_datetime - timedelta(hours=CANCELLATION_DEADLINE_HOURS)
+
+        # 检查当前时间是否在允许取消的时间范围内
         return datetime.now() <= cancellation_deadline
 
     def _handle_waiting_list(self, cancelled_reservation: Reservation) -> None:

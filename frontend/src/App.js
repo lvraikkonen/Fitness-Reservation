@@ -22,6 +22,7 @@ import Feedback from './pages/Feedback';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import PrivateRoute from './components/PrivateRoute';
+import NotFound from './pages/NotFound';
 
 const { Content } = Layout;
 
@@ -39,6 +40,7 @@ function App() {
       <Layout style={{ minHeight: '100vh' }}>
         <Content style={{ padding: '0 50px' }}>
           <Routes>
+            <Route path="/" element={<Login />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
@@ -48,6 +50,7 @@ function App() {
             <Route path="/feedback" element={<PrivateRoute><Feedback /></PrivateRoute>} />
             <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
             <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </Content>
       </Layout>

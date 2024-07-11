@@ -31,6 +31,7 @@ def create_reservation(
     This endpoint creates a new reservation for the current user. If there's a conflict
     (e.g., the time slot is already fully booked), it adds the user to the waiting list.
     """
+    logger.info(f"Received reservation data: {reservation}")
     reservation_service = ReservationService(db)
     try:
         # Ensure the user_id in the reservation matches the current user
@@ -92,17 +93,21 @@ def update_reservation(
     return updated_reservation
 
 
-@router.delete("/reservations/{reservation_id}")
-def delete_reservation(
+@router.delete("/reservations/{reservation_id}", status_code=status.HTTP_204_NO_CONTENT)
+def cancel_reservation(
         reservation_id: int,
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
     reservation_service = ReservationService(db)
-    deleted = reservation_service.delete_reservation(reservation_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Reservation not found")
-    return {"message": "Reservation deleted successfully"}
+    try:
+        reservation_service.cancel_reservation(reservation_id, current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred")
+
+    return {"message": "Reservation cancelled successfully"}
 
 
 @router.post("/reservations/{reservation_id}/confirm")

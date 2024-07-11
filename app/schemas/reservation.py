@@ -1,29 +1,42 @@
-from pydantic import BaseModel
-from typing import List, Optional, Dict
+from pydantic import BaseModel, field_validator
+from typing import List, Optional, Dict, Any
 from datetime import datetime, date, time
 from app.models.reservation import ReservationStatus
 
 
-class ReservationBase(BaseModel):
-    status: ReservationStatus
-
-
-class ReservationCreate(ReservationBase):
+class ReservationCreate(BaseModel):
     user_id: int
     venue_id: int
     date: date
     start_time: time
     end_time: time
 
+    @field_validator('date')
+    def validate_date(cls, v: date) -> date:
+        if v < date.today():
+            raise ValueError('Reservation date cannot be in the past')
+        return v
 
-class ReservationUpdate(ReservationBase):
+    @field_validator('end_time')
+    def validate_end_time(cls, v: time, info: Any) -> time:
+        start_time = info.data.get('start_time')
+        if start_time and v <= start_time:
+            raise ValueError('End time must be after start time')
+        return v
+
+
+class ReservationUpdate(BaseModel):
     status: Optional[ReservationStatus] = None
 
 
-class Reservation(ReservationBase):
+class Reservation(BaseModel):
     id: int
     user_id: int
     time_slot_id: int
+    status: ReservationStatus = ReservationStatus.PENDING
+    date: date
+    start_time: time
+    end_time: time
     created_at: datetime
     updated_at: datetime
 
