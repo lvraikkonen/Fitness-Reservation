@@ -4,13 +4,17 @@ from app.models.sport_venue import SportVenue
 from app.models.venue import Venue, VenueStatus
 from app.models.facility import Facility
 from app.models.reservation_time_slot import ReservationTimeSlot
+from app.models.venue_available_time_slot import VenueAvailableTimeSlot
 from app.models.reservation import Reservation, ReservationStatus
 from app.models.waiting_list import WaitingList
 from app.models.leader_reserved_time import LeaderReservedTime
 from app.models.feedback import Feedback
 from app.models.notification import Notification
 from app.core.security import get_password_hash
-from datetime import date, time
+from datetime import date, time, datetime, timedelta
+from app.core.config import get_logger
+
+logger = get_logger(__name__)
 
 
 def init_db():
@@ -41,9 +45,12 @@ def create_sample_data():
         db.commit()
 
         # 创建示例具体场馆
-        venue1 = Venue(sport_venue_id=sport_venue1.id, name="Court 1", capacity=10, status=VenueStatus.OPEN)
-        venue2 = Venue(sport_venue_id=sport_venue1.id, name="Court 2", capacity=12, status=VenueStatus.OPEN)
-        venue3 = Venue(sport_venue_id=sport_venue2.id, name="Court 3", capacity=8, status=VenueStatus.MAINTENANCE)
+        venue1 = Venue(sport_venue_id=sport_venue1.id, name="Court 1", capacity=10, default_capacity=8,
+                       status=VenueStatus.OPEN)
+        venue2 = Venue(sport_venue_id=sport_venue1.id, name="Court 2", capacity=12, default_capacity=10,
+                       status=VenueStatus.OPEN)
+        venue3 = Venue(sport_venue_id=sport_venue2.id, name="Court 3", capacity=8, default_capacity=6,
+                       status=VenueStatus.MAINTENANCE)
         db.add_all([venue1, venue2, venue3])
         db.commit()
 
@@ -54,7 +61,25 @@ def create_sample_data():
         db.add_all([facility1, facility2, facility3])
         db.commit()
 
-        # 创建预约时间段
+        # 创建未来14天的 VenueAvailableTimeSlot
+        today = datetime.now().date()
+        for venue in [venue1, venue2, venue3]:
+            for day in range(14):
+                current_date = today + timedelta(days=day)
+                for hour in range(7, 22):  # 假设开放时间是 7:00 到 22:00
+                    start_time = time(hour, 0)
+                    end_time = time(hour + 1, 0)
+                    available_slot = VenueAvailableTimeSlot(
+                        venue_id=venue.id,
+                        date=current_date,
+                        start_time=start_time,
+                        end_time=end_time,
+                        capacity=venue.default_capacity
+                    )
+                    db.add(available_slot)
+        db.commit()
+
+        # 创建预约时间段（保持原有的示例数据）
         time_slot1 = ReservationTimeSlot(venue_id=venue1.id, date=date(2024, 7, 1), start_time=time(9, 0),
                                          end_time=time(10, 0))
         time_slot2 = ReservationTimeSlot(venue_id=venue1.id, date=date(2024, 7, 1), start_time=time(10, 0),
@@ -94,8 +119,10 @@ def create_sample_data():
         db.add_all([leader_reserved_time1, leader_reserved_time2])
         db.commit()
 
+        logger.info("Sample data created successfully.")
+
 
 if __name__ == "__main__":
     init_db()
     create_sample_data()
-    print("Database initialized with sample data.")
+    logger.info("Database initialized with sample data.")

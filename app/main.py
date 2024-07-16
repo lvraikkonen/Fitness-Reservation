@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 import asyncio
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1.endpoints import user, sport_venue, venue, facility
+from app.api.v1.endpoints import user, sport_venue, venue, facility, venue_available_time_slots
 from app.api.v1.feedback import feedback
 from app.api.v1.stats import stats
 from app.api.v1.endpoints import reservation
@@ -40,6 +40,7 @@ app.add_middleware(
 app.include_router(user.router, prefix="/api/v1/users", tags=["users"])
 app.include_router(sport_venue.router, prefix="/api/v1/sport_venues", tags=["sport_venues"])
 app.include_router(venue.router, prefix="/api/v1/venues", tags=["venues"])
+app.include_router(venue_available_time_slots.router, prefix="/api/v1/venues", tags=["venues"])
 app.include_router(facility.router, prefix="/api/v1/facilities", tags=["facilities"])
 app.include_router(feedback.router, prefix="/feedback", tags=["feedback"])
 app.include_router(reservation.router, prefix="/api/v1/reservations", tags=["reservations"])

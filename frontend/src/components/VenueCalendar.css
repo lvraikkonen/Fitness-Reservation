@@ -1,0 +1,57 @@
+.venue-calendar .events {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  
+  .venue-calendar .ant-badge-status {
+    width: 100%;
+    overflow: hidden;
+    font-size: 12px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  
+  .venue-calendar .ant-picker-calendar-date {
+    border-radius: 8px;
+  }
+  
+  .venue-calendar .time-slots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .venue-calendar .time-slot-button {
+    margin-bottom: 8px;
+  }
+
+  .cell-content {
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 14px;
+  }
+  
+  .cell-content.closed {
+    color: #999;
+  }
+  
+  .cell-content.full {
+    color: #f5222d;
+  }
+  
+  .cell-content.available {
+    color: #52c41a;
+  }
+  
+  .time-slots {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .time-slot-button {
+    width: 100%;
+  }

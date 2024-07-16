@@ -16,7 +16,8 @@ class Venue(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     sport_venue_id = Column(Integer, ForeignKey("sport_venue.id"), nullable=False)
     name = Column(String(50), nullable=False)
-    capacity = Column(Integer, nullable=False)
+    capacity = Column(Integer, nullable=False)  # 表示场馆能够同时容纳的最大人数
+    default_capacity = Column(Integer, nullable=False)  # 场馆在创建可预约时间段时的默认容量
     status = Column(SqlAlchemyEnum(VenueStatus), default=VenueStatus.OPEN, nullable=False)
     notice = Column(Text)
     created_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
@@ -27,3 +28,4 @@ class Venue(Base):
     reservation_time_slots = relationship("ReservationTimeSlot", back_populates="venue")
     leader_reserved_times = relationship("LeaderReservedTime", back_populates="venue")
     feedbacks = relationship("Feedback", back_populates="venue")
+    available_time_slots = relationship("VenueAvailableTimeSlot", back_populates="venue")

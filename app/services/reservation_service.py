@@ -12,6 +12,7 @@ from app.models.venue import Venue
 from app.models.reservation import Reservation, ReservationStatus
 from app.models.reservation_time_slot import ReservationTimeSlot
 from app.models.leader_reserved_time import LeaderReservedTime
+from app.models.venue_available_time_slot import VenueAvailableTimeSlot
 from app.models.waiting_list import WaitingList
 from app.schemas.reservation import (ReservationCreate, ReservationUpdate, ReservationTimeSlotRead,
                                      ReservationRead, PaginatedReservationResponse)
@@ -20,7 +21,7 @@ from app.schemas.reservation_time_slot import ReservationTimeSlotBase
 from app.schemas.waiting_list import WaitingListReadWithReservationTimeSlot, WaitingListRead
 
 from app.services.notification_service import NotificationService
-# from app.services.log_services import log_operation
+from app.services.venue_available_time_slot_service import VenueAvailableTimeSlotService
 
 from app.core.exceptions import ReservationException, ReservationNotFoundError, DatabaseError
 
@@ -35,6 +36,7 @@ class ReservationService:
     def __init__(self, db: Session):
         self.db = db
         self.notification_service = NotificationService(db=self.db)
+        self.venue_available_time_slot_service = VenueAvailableTimeSlotService(db=self.db)
 
     def get_reservations(self, user_id: int):
         return self.db.query(Reservation).filter(Reservation.user_id == user_id).all()
@@ -319,56 +321,78 @@ class ReservationService:
 
     def _create_reservation_logic(self, reservation_data: ReservationCreate) -> Union[ReservationRead, WaitingListRead]:
         try:
-            # 创建 ReservationTimeSlotBase 对象
-            time_slot_data = ReservationTimeSlotBase(
-                date=reservation_data.date,
-                start_time=reservation_data.start_time,
-                end_time=reservation_data.end_time
-            )
+            # 检查 VenueAvailableTimeSlot 的可用性和容量
+            available_slot = self.db.query(VenueAvailableTimeSlot).filter(
+                VenueAvailableTimeSlot.venue_id == reservation_data.venue_id,
+                VenueAvailableTimeSlot.date == reservation_data.date,
+                VenueAvailableTimeSlot.start_time == reservation_data.start_time,
+                VenueAvailableTimeSlot.end_time == reservation_data.end_time
+            ).with_for_update().first()
+
+            if not available_slot or available_slot.capacity <= 0:
+                logger.info(
+                    f"No available slot or capacity for venue {reservation_data.venue_id} at {reservation_data.date} {reservation_data.start_time}-{reservation_data.end_time}. Adding to waiting list.")
+                waiting_list_item = self.join_waiting_list(
+                    venue_id=reservation_data.venue_id,
+                    reservation_data=ReservationTimeSlotBase(
+                        date=reservation_data.date,
+                        start_time=reservation_data.start_time,
+                        end_time=reservation_data.end_time
+                    ),
+                    user_id=reservation_data.user_id
+                )
+                return WaitingListRead.from_orm(waiting_list_item)
 
             # 检查预约冲突
-            conflict, conflict_reason = self.check_reservation_conflict(reservation_data.venue_id, time_slot_data)
-
+            conflict, conflict_reason = self.check_reservation_conflict(reservation_data.venue_id, reservation_data)
             if conflict:
                 logger.info(f"Reservation conflict detected: {conflict_reason}. Adding to waiting list.")
                 waiting_list_item = self.join_waiting_list(
                     venue_id=reservation_data.venue_id,
-                    reservation_data=time_slot_data,
+                    reservation_data=ReservationTimeSlotBase(
+                        date=reservation_data.date,
+                        start_time=reservation_data.start_time,
+                        end_time=reservation_data.end_time
+                    ),
                     user_id=reservation_data.user_id
                 )
                 return WaitingListRead.from_orm(waiting_list_item)
-            else:
-                # 获取或创建时间段
-                reservation_time_slot = self._get_or_create_time_slot(reservation_data)
 
-                # 创建新预约
-                new_reservation = Reservation(
-                    user_id=reservation_data.user_id,
-                    time_slot_id=reservation_time_slot.id,
-                    status=ReservationStatus.PENDING
-                )
-                self.db.add(new_reservation)
-                self.db.flush()
+            # 获取或创建时间段
+            reservation_time_slot = self._get_or_create_time_slot(reservation_data)
 
-                logger.info(f"New reservation created with ID: {new_reservation.id}")
+            # 创建新预约
+            new_reservation = Reservation(
+                user_id=reservation_data.user_id,
+                time_slot_id=reservation_time_slot.id,
+                status=ReservationStatus.PENDING
+            )
+            self.db.add(new_reservation)
 
-                # 验证预约是否被正确保存
-                reservation_with_details = self._get_reservation_details(new_reservation.id)
-                if not reservation_with_details:
-                    raise ValueError(f"Failed to retrieve created reservation with ID: {new_reservation.id}")
+            # 减少相应 VenueAvailableTimeSlot 的容量
+            available_slot.capacity -= 1
 
-                # 创建并返回 ReservationRead 对象
-                return ReservationRead(
-                    id=reservation_with_details.id,
-                    user_id=reservation_with_details.user_id,
-                    time_slot_id=reservation_with_details.time_slot_id,
-                    status=reservation_with_details.status,
-                    date=reservation_with_details.time_slot.date,
-                    start_time=reservation_with_details.time_slot.start_time,
-                    end_time=reservation_with_details.time_slot.end_time,
-                    sport_venue_name=reservation_with_details.time_slot.venue.sport_venue.name,
-                    venue_name=reservation_with_details.time_slot.venue.name
-                )
+            self.db.flush()
+
+            logger.info(f"New reservation created with ID: {new_reservation.id}")
+
+            # 验证预约是否被正确保存
+            reservation_with_details = self._get_reservation_details(new_reservation.id)
+            if not reservation_with_details:
+                raise ValueError(f"Failed to retrieve created reservation with ID: {new_reservation.id}")
+
+            # 创建并返回 ReservationRead 对象
+            return ReservationRead(
+                id=reservation_with_details.id,
+                user_id=reservation_with_details.user_id,
+                time_slot_id=reservation_with_details.time_slot_id,
+                status=reservation_with_details.status,
+                date=reservation_with_details.time_slot.date,
+                start_time=reservation_with_details.time_slot.start_time,
+                end_time=reservation_with_details.time_slot.end_time,
+                sport_venue_name=reservation_with_details.time_slot.venue.sport_venue.name,
+                venue_name=reservation_with_details.time_slot.venue.name
+            )
 
         except SQLAlchemyError as e:
             logger.error(f"Database error occurred while creating reservation: {str(e)}")

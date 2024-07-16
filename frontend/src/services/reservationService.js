@@ -17,24 +17,22 @@ export const fetchVenues = async () => {
   return response.data;
 };
 
-export const fetchVenueCalendar = async (venueId, startDate, endDate, page = 1, pageSize = 10) => {
+export const fetchVenueCalendar = async (venueId, startDate, endDate) => {
   try {
-    const response = await reservationApi.get(`/venues/${venueId}/calendar`, {
-      params: {
-        start_date: startDate ? dayjs(startDate).format('YYYY-MM-DD') : undefined,
-        end_date: endDate ? dayjs(endDate).format('YYYY-MM-DD') : undefined,
-        page,
-        page_size: pageSize
-      }
+    const response = await venueApi.get(`/${venueId}/available-slots`, {
+      params: { start_date: startDate, end_date: endDate }
     });
-    // 添加数据验证
-    const data = response.data;
-    return {
-      calendar_data: data.calendar_data || {},
-      total_pages: data.total_pages || 1,
-      current_page: data.current_page || 1,
-      page_size: data.page_size || 10
-    };
+    
+    // 将数据转换为所需的格式
+    const formattedData = response.data.reduce((acc, slot) => {
+      if (!acc[slot.date]) {
+        acc[slot.date] = [];
+      }
+      acc[slot.date].push(slot);
+      return acc;
+    }, {});
+
+    return formattedData;
   } catch (error) {
     console.error('Error fetching venue calendar:', error);
     throw error;
