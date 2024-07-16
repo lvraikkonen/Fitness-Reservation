@@ -8,8 +8,10 @@ from app.core.security import (get_password_hash, verify_password,
                                create_password_reset_token, verify_password_reset_token)
 from app.deps import get_db
 # from app.services.log_services import log_operation
-from app.core.config import settings
+from app.core.config import settings, get_logger
 from app.utils.email import send_reset_password_email
+
+logger = get_logger(__name__)
 
 
 class UserService:
@@ -78,7 +80,7 @@ class UserService:
                 status_code=401,
                 detail="Incorrect username or password"
             )
-        # log_operation(user.id, "login", {"username": user.username})
+        logger.info(f"User: {user.username} has just login. UserId: {user.id}")
         return user
 
     def delete_user(self, user_id: int):

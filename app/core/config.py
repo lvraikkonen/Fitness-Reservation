@@ -1,6 +1,8 @@
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 import os
+from logging.handlers import RotatingFileHandler
+import logging
 
 # 加载 .env 文件中的配置
 load_dotenv()
@@ -13,13 +15,24 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str = os.getenv("ALGORITHM")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES")
+    # Mail SMTP config
     SMTP_SERVER: str = os.getenv("SMTP_SERVER")
     SMTP_PORT: int = os.getenv("SMTP_PORT")
     SMTP_USERNAME: str = os.getenv("SMTP_USERNAME")
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD")
     SMTP_TLS: bool = os.getenv("SMTP_TLS")
+
     FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL")
+    # Reservation Cancellation Rule
     CANCELLATION_DEADLINE_HOURS: int = os.getenv("CANCELLATION_DEADLINE_HOURS")
+
+    # Log config
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL")
+    LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    LOG_DIR: str = "logs"
+    LOG_FILE: str = "app.log"
+    LOG_FILE_MAX_BYTES: int = 10 * 1024 * 1024  # 10MB
+    LOG_FILE_BACKUP_COUNT: int = 5
 
     class Config:
         env_file = ".env"
@@ -81,3 +94,30 @@ settings = get_settings()
 
 # log db settings
 mongo_settings = MongoSettings()
+
+os.makedirs(settings.LOG_DIR, exist_ok=True)
+
+formatter = logging.Formatter(settings.LOG_FORMAT)
+
+# 创建一个控制台处理器
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(formatter)
+
+# 创建一个文件处理器，使用RotatingFileHandler进行日志轮转
+file_handler = RotatingFileHandler(
+    filename=os.path.join(settings.LOG_DIR, settings.LOG_FILE),
+    maxBytes=settings.LOG_FILE_MAX_BYTES,
+    backupCount=settings.LOG_FILE_BACKUP_COUNT
+)
+file_handler.setFormatter(formatter)
+
+# 配置根日志记录器
+logging.basicConfig(
+    level=getattr(logging, settings.LOG_LEVEL),
+    handlers=[console_handler, file_handler]
+)
+
+
+def get_logger(name):
+    logger = logging.getLogger(name)
+    return logger

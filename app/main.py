@@ -6,7 +6,7 @@ from app.api.v1.feedback import feedback
 from app.api.v1.stats import stats
 from app.api.v1.endpoints import reservation
 from app.scripts.init_db import init_db, create_sample_data, recreate_db
-from app.core.config import settings
+from app.core.config import settings, get_logger
 from contextlib import asynccontextmanager
 
 
@@ -24,6 +24,8 @@ app = FastAPI(
     version=settings.PROJECT_VERSION,
     lifespan=lifespan_context,
 )
+
+logger = get_logger(__name__)
 
 # 配置 CORS
 app.add_middleware(
@@ -46,9 +48,11 @@ app.include_router(stats.router, prefix="/stats", tags=["statistics"])
 
 @app.get("/")
 def read_root():
+    logger.info("Hello World endpoint")
     return {"message": "Welcome to the API"}
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    logger.info(f"Starting application with log level: {settings.LOG_LEVEL}")
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
