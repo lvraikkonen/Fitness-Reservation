@@ -7,7 +7,7 @@ from app.models.sport_venue import SportVenue
 from app.models.venue import Venue, VenueStatus
 from app.models.facility import Facility
 from app.models.leader_reserved_time import LeaderReservedTime
-from app.models.reservation_time_slot import ReservationTimeSlot
+from app.models.reservation_time_slot_delete import ReservationTimeSlot
 from app.schemas.venue import VenueCreate, VenueUpdate
 from app.deps import get_db
 

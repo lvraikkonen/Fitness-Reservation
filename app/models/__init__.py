@@ -2,9 +2,11 @@ from .user import User
 from .sport_venue import SportVenue
 from .venue import Venue
 from .facility import Facility
-from .reservation_time_slot import ReservationTimeSlot
 from .reservation import Reservation
 from .waiting_list import WaitingList
 from .feedback import Feedback
 from .notification import Notification
 from .leader_reserved_time import LeaderReservedTime
+
+from .recurring_reservation import RecurringReservation
+from .reservation_rules import ReservationRules

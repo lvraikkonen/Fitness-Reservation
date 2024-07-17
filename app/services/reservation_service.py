@@ -10,7 +10,7 @@ from app.models.sport_venue import SportVenue
 from app.models.user import User
 from app.models.venue import Venue
 from app.models.reservation import Reservation, ReservationStatus
-from app.models.reservation_time_slot import ReservationTimeSlot
+from app.models.reservation_time_slot_delete import ReservationTimeSlot
 from app.models.leader_reserved_time import LeaderReservedTime
 from app.models.venue_available_time_slot import VenueAvailableTimeSlot
 from app.models.waiting_list import WaitingList

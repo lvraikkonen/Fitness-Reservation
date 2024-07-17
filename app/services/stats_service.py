@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, case
 from datetime import datetime
 from app.models.reservation import Reservation
-from app.models.reservation_time_slot import ReservationTimeSlot
+from app.models.reservation_time_slot_delete import ReservationTimeSlot
 from app.models.user import User
 from app.models.venue import Venue
 from app.models.facility import Facility

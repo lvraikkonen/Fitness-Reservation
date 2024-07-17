@@ -1,6 +1,13 @@
-from sqlalchemy import Column, Integer, String, Boolean, TIMESTAMP, text
+from sqlalchemy import Column, Integer, String, Boolean, TIMESTAMP, text, Enum as SqlAlchemyEnum
 from sqlalchemy.orm import relationship
 from app.db.database import Base
+from enum import Enum
+
+
+class UserRole(Enum):
+    EMPLOYEE = "employee"
+    VIP = "vip"
+    ADMIN = "admin"
 
 
 class User(Base):
@@ -11,7 +18,7 @@ class User(Base):
     password = Column(String(100), nullable=False)
     email = Column(String(100), unique=True, nullable=False)
     phone = Column(String(20), nullable=False)
-    role = Column(Integer, nullable=False, default=0)
+    role = Column(SqlAlchemyEnum(UserRole), nullable=False, default=UserRole.EMPLOYEE)
     is_leader = Column(Boolean, nullable=False, default=False)
     full_name = Column(String(50))
     department = Column(String(50))
@@ -25,11 +32,12 @@ class User(Base):
     notifications = relationship("Notification", back_populates="user")
     leader_reserved_times = relationship("LeaderReservedTime", back_populates="user")
     waiting_lists = relationship("WaitingList", back_populates="user")
+    recurring_reservations = relationship("RecurringReservation", back_populates="user")
 
     @property
     def is_admin(self):
-        return self.role == 1
+        return self.role == UserRole.ADMIN
 
     @classmethod
     def admin_role(cls):
-        return 1
+        return UserRole.ADMIN

@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.models.reservation_time_slot import ReservationTimeSlot
+from app.models.reservation_time_slot_delete import ReservationTimeSlot
 from app.schemas.reservation_time_slot import ReservationTimeSlotCreate, ReservationTimeSlotUpdate
 
 

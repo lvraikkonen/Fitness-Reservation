@@ -14,7 +14,7 @@ Employee Fitness Center Reservation System (AIChat-Oriented-Programming)
 
 - [x] 数据统计与分析模块
 
-- [ ] 管理后台模块  
+- [x] 管理后台模块  
 
 - [x] 安全与隐私模块
 
@@ -27,8 +27,8 @@ Employee Fitness Center Reservation System (AIChat-Oriented-Programming)
 ### 页面
 
 - [x] Dashboard
-- [ ] 预约流程页面
-- [ ] 后端管理页面
+- [x] 预约流程页面
+- [x] 后端管理页面
 - [x] 用户Profile页面
 - [x] Feedback反馈 
 
