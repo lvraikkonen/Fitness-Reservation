@@ -15,16 +15,27 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str = os.getenv("ALGORITHM")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES")
-    # Mail SMTP config
-    SMTP_SERVER: str = os.getenv("SMTP_SERVER")
+
+    # Email settings
+    EMAIL_FROM: str = os.getenv("EMAIL_FROM")
+    SMTP_HOST: str = os.getenv("SMTP_HOST")
     SMTP_PORT: int = os.getenv("SMTP_PORT")
-    SMTP_USERNAME: str = os.getenv("SMTP_USERNAME")
+    SMTP_USER: str = os.getenv("SMTP_USER")
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD")
-    SMTP_TLS: bool = os.getenv("SMTP_TLS")
+
+    # SMS settings
+    SMS_API_URL: str = os.getenv("SMS_API_URL")
+    SMS_API_KEY: str = os.getenv("SMS_API_KEY")
 
     FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL")
     # Reservation Cancellation Rule
     CANCELLATION_DEADLINE_HOURS: int = os.getenv("CANCELLATION_DEADLINE_HOURS")
+    # Waiting list expired time
+    WAITING_LIST_PROCESS_HOURS: int = os.getenv("WAITING_LIST_PROCESS_HOURS")
+    # Reservation Confirm hours
+    RESERVATION_CONFIRMATION_DEADLINE_HOURS: int = os.getenv("RESERVATION_CONFIRMATION_DEADLINE_HOURS")
+    # AutoConfirm hours
+    AUTO_CONFIRM_HOURS: int = os.getenv("AUTO_CONFIRM_HOURS")
 
     # Log config
     LOG_LEVEL: str = os.getenv("LOG_LEVEL")

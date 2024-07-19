@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waiting List Notification</title>
+</head>
+<body>
+    <h1>Added to Waiting List</h1>
+    <p>Dear {{ username }},</p>
+    <p>You have been added to the waiting list for the following reservation:</p>
+    <ul>
+        <li>Venue: {{ sport_venue_name }} - {{ venue_name }}</li>
+        <li>Date: {{ date }}</li>
+        <li>Time: {{ start_time }} - {{ end_time }}</li>
+    </ul>
+    <p>We will notify you if a spot becomes available.</p>
+    <p>Best regards,<br>Your App Team</p>
+</body>
+</html>

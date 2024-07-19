@@ -1,5 +1,5 @@
 from pydantic import BaseModel, field_validator
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime
 from app.models.venue import VenueStatus
 
@@ -35,6 +35,19 @@ class VenueUpdate(BaseModel):
             if v > info.data['capacity']:
                 raise ValueError('default_capacity must not exceed capacity')
         return v
+
+
+class VenueRead(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
+class VenueStats(BaseModel):
+    total_venues: int
+    status_counts: Dict[str, int]
 
 
 class Venue(VenueBase):

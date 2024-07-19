@@ -7,7 +7,7 @@ from app.models.user import User
 from app.models.reservation import ReservationStatus
 from app.services.reservation_service import ReservationService
 from app.schemas.reservation import ReservationCreate, ReservationUpdate, ReservationRead, PaginatedReservationResponse
-from app.schemas.reservation import VenueCalendarResponse
+from app.schemas.reservation import VenueCalendarResponse, ConflictCheckResult
 from app.schemas.waiting_list import WaitingListRead
 from app.core.exceptions import ReservationException, ReservationNotFoundError
 from app.core.exceptions import ReservationConflictError, DatabaseError
@@ -87,10 +87,18 @@ def update_reservation(
         db: Session = Depends(get_db)
 ):
     reservation_service = ReservationService(db)
-    updated_reservation = reservation_service.update_reservation(reservation_id, reservation)
-    if not updated_reservation:
-        raise HTTPException(status_code=404, detail="Reservation not found")
-    return updated_reservation
+    try:
+        # 检查用户是否有权限更新这个预约
+        original_reservation = reservation_service.get_reservation(reservation_id)
+        if original_reservation.user_id != current_user.id and not current_user.is_admin:
+            raise HTTPException(status_code=403, detail="Not authorized to update this reservation")
+
+        updated_reservation = reservation_service.update_reservation(reservation_id, reservation)
+        return updated_reservation
+    except ReservationNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ReservationException as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.delete("/reservations/{reservation_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -119,8 +127,9 @@ def confirm_reservation(
     reservation_service = ReservationService(db)
     try:
         reservation_service.confirm_reservation(reservation_id)
-        return {"message": "Reservation confirmed successfully"}
-    except ValueError as e:
+    except ReservationNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ReservationException as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -132,6 +141,25 @@ def get_waiting_list(
 ):
     reservation_service = ReservationService(db)
     return reservation_service.get_waiting_list(venue_id)
+
+
+@router.post("/reservations/check-conflict", response_model=ConflictCheckResult)
+def check_reservation_conflict(
+        reservation: ReservationCreate,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+    reservation_service = ReservationService(db)
+    try:
+        # Ensure the user_id in the reservation matches the current user
+        if reservation.user_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User ID mismatch")
+
+        conflict_result = reservation_service.check_reservation_conflict(reservation)
+        return conflict_result
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"An unexpected error occurred: {str(e)}")
 
 
 @router.get("/venues/{venue_id}/calendar", response_model=VenueCalendarResponse)

@@ -8,6 +8,6 @@ def create_future_venue_time_slot():
     db = SessionLocal()
     try:
         service = VenueAvailableTimeSlotService(db)
-        service.create_future_time_slot()
+        service.create_future_time_slots(days_ahead=7)
     finally:
         db.close()

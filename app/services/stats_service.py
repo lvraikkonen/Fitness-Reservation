@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, case
 from datetime import datetime
 from app.models.reservation import Reservation
-from app.models.reservation_time_slot_delete import ReservationTimeSlot
+from app.models.venue_available_time_slot import VenueAvailableTimeSlot
 from app.models.user import User
 from app.models.venue import Venue
 from app.models.facility import Facility
@@ -83,8 +83,8 @@ class StatsService:
             Venue.id,
             Venue.name,
             func.count(Reservation.id).label("reservation_count")
-        ).join(ReservationTimeSlot, Venue.id == ReservationTimeSlot.venue_id).
-                 join(Reservation, ReservationTimeSlot.id == Reservation.time_slot_id))
+        ).join(VenueAvailableTimeSlot, Venue.id == VenueAvailableTimeSlot.venue_id)
+         .join(Reservation, VenueAvailableTimeSlot.id == Reservation.venue_available_time_slot_id))
 
         if start_date:
             query = query.filter(Reservation.created_at >= start_date)
@@ -142,14 +142,14 @@ class StatsService:
     def get_facility_usage_stats(self):
         total_facilities = self.db.query(Facility).count()
 
-        facility_usage = (((self.db.query(
+        facility_usage = (self.db.query(
             Facility.id,
             Facility.name,
             func.count(Reservation.id).label("usage_count")
         ).join(Venue, Facility.venue_id == Venue.id)
-                          .join(ReservationTimeSlot, Venue.id == ReservationTimeSlot.venue_id))
-                          .join(Reservation, ReservationTimeSlot.id == Reservation.time_slot_id))
-                          .group_by(Facility.id, Facility.name)).all()
+         .join(VenueAvailableTimeSlot, Venue.id == VenueAvailableTimeSlot.venue_id)
+         .join(Reservation, VenueAvailableTimeSlot.id == Reservation.venue_available_time_slot_id)
+         .group_by(Facility.id, Facility.name)).all()
 
         facility_usage = [
             FacilityUsageCount(facility_id=fu[0], facility_name=fu[1], usage_count=fu[2])

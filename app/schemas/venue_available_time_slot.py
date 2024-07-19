@@ -28,6 +28,18 @@ class VenueAvailableTimeSlotBase(BaseModel):
         return v
 
 
+class VenueAvailableTimeSlotRead(BaseModel):
+    id: int
+    venue_id: int
+    date: date
+    start_time: time
+    end_time: time
+    capacity: int
+
+    class Config:
+        from_attributes = True
+
+
 class VenueAvailableTimeSlotCreate(VenueAvailableTimeSlotBase):
     pass
 

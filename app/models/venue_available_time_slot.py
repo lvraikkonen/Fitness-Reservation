@@ -16,6 +16,7 @@ class VenueAvailableTimeSlot(Base):
     updated_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP"))
 
     venue = relationship("Venue", back_populates="available_time_slots")
+    reservations = relationship("Reservation", back_populates="venue_available_time_slot")
 
     __table_args__ = (
         UniqueConstraint('venue_id', 'date', 'start_time', 'end_time', name='uq_venue_date_time'),

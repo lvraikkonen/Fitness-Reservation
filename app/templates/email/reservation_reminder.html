@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reservation Reminder</title>
+</head>
+<body>
+    <h1>Reservation Reminder</h1>
+    <p>Dear {{ username }},</p>
+    <p>This is a reminder for your upcoming reservation:</p>
+    <ul>
+        <li>Venue: {{ sport_venue_name }} - {{ venue_name }}</li>
+        <li>Date: {{ date }}</li>
+        <li>Time: {{ start_time }} - {{ end_time }}</li>
+    </ul>
+    <p>We look forward to seeing you!</p>
+    <p>Best regards,<br>Your App Team</p>
+</body>
+</html>

@@ -2,14 +2,28 @@ from pydantic import BaseModel, field_validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date, time
 from app.models.reservation import ReservationStatus
+from app.models.recurring_reservation import RecurrencePattern
 
 
-class ReservationCreate(BaseModel):
+class ReservationBase(BaseModel):
+    status: ReservationStatus
+
+
+class ConflictCheckResult(BaseModel):
+    has_conflict: bool
+    conflict_reason: Optional[str] = None
+    conflicting_slots: List[Dict[str, Any]] = []
+
+
+class ReservationCreate(ReservationBase):
     user_id: int
     venue_id: int
     date: date
     start_time: time
     end_time: time
+    is_recurring: bool = False
+    recurring_pattern: Optional[RecurrencePattern] = None
+    recurrence_end_date: Optional[date] = None
 
     @field_validator('date')
     def validate_date(cls, v: date) -> date:
@@ -27,33 +41,21 @@ class ReservationCreate(BaseModel):
 
 class ReservationUpdate(BaseModel):
     status: Optional[ReservationStatus] = None
+    venue_available_time_slot_id: Optional[int] = None
 
 
-class Reservation(BaseModel):
+class ReservationRead(ReservationBase):
     id: int
     user_id: int
-    time_slot_id: int
-    status: ReservationStatus = ReservationStatus.PENDING
-    date: date
-    start_time: time
-    end_time: time
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
-class ReservationRead(BaseModel):
-    id: int
-    user_id: int
-    time_slot_id: int
+    venue_available_time_slot_id: int
     status: ReservationStatus
     date: date
     start_time: time
     end_time: time
     sport_venue_name: str
     venue_name: str
+    is_recurring: bool
+    recurring_reservation_id: Optional[int]
 
     class Config:
         from_attributes = True
@@ -71,6 +73,7 @@ class CalendarTimeSlot(BaseModel):
     date: date
     start_time: time
     end_time: time
+    capacity: int
     reservations: List[ReservationRead] = []
 
     class Config:
@@ -91,12 +94,13 @@ class VenueCalendarResponse(BaseModel):
         from_attributes = True
 
 
-class ReservationTimeSlotRead(BaseModel):
+class VenueAvailableTimeSlotRead(BaseModel):
     id: int
     venue_id: int
     date: date
     start_time: time
     end_time: time
+    capacity: int
 
     class Config:
         from_attributes = True
