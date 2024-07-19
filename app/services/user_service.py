@@ -1,13 +1,11 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
-from fastapi import Depends
 
 from app.models.user import User
 from app.schemas.user import UserCreate, UserUpdate, UserResponse
 from app.core.security import (get_password_hash, verify_password,
                                create_password_reset_token, verify_password_reset_token)
-from app.deps import get_db
 # from app.services.log_services import log_operation
 from app.core.config import settings, get_logger
 from app.utils.email import send_email_async
@@ -18,7 +16,7 @@ logger = get_logger(__name__)
 
 
 class UserService:
-    def __init__(self, db: Session = Depends(get_db)):
+    def __init__(self, db: Session):
         self.db = db
 
     def get_user(self, user_id: Optional[int] = None, username: Optional[str] = None, email: Optional[str] = None) -> User:

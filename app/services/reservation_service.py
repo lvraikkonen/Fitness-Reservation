@@ -22,6 +22,7 @@ from app.schemas.reservation import VenueCalendarResponse, CalendarTimeSlot
 from app.schemas.waiting_list import WaitingListReadWithVenueAvailableTimeSlot, WaitingListRead
 from app.schemas.venue_available_time_slot import VenueAvailableTimeSlotRead
 from app.services.notification_service import NotificationService
+from app.services.waiting_list_service import WaitingListService
 from app.services.venue_available_time_slot_service import VenueAvailableTimeSlotService
 
 from app.core.exceptions import ReservationException, ReservationNotFoundError, DatabaseError
@@ -42,6 +43,7 @@ class ReservationService:
         self.db = db
         self.notification_service = NotificationService(db=self.db)
         self.venue_available_time_slot_service = VenueAvailableTimeSlotService(db=self.db)
+        self.waiting_list_service = WaitingListService(db=self.db)
 
     def get_reservation(self, reservation_id: int) -> Optional[ReservationRead]:
         reservation = (
@@ -590,23 +592,25 @@ class ReservationService:
             venue_available_time_slot = reservation.venue_available_time_slot
             venue_available_time_slot.capacity += 1
 
+            # 处理等待列表
             self._handle_waiting_list(reservation)
 
             # 显式提交事务
             self.db.commit()
-
-            # 通知原预约用户预约已取消
-            self._notify_cancellation(reservation)
-
+        except ReservationException as e:
+            logger.warning(str(e))
+            raise
         except SQLAlchemyError as e:
             self.db.rollback()
             logger.error(f"Database error occurred while cancelling reservation {reservation_id}: {str(e)}")
             raise DatabaseError(f"Failed to cancel reservation: {str(e)}")
-
         except Exception as e:
             self.db.rollback()
-            logger.error(f"Error occurred while cancelling reservation {reservation_id}: {str(e)}")
+            logger.error(f"Unexpected error occurred while cancelling reservation {reservation_id}: {str(e)}")
             raise
+        else:
+            # 通知原预约用户预约已取消
+            self._notify_cancellation(reservation)
 
     def _can_cancel_reservation(self, reservation: Reservation, user_id: int) -> bool:
         # 检查用户是否是预约的创建者或管理员
@@ -628,13 +632,11 @@ class ReservationService:
         return datetime.now() <= cancellation_deadline
 
     def _handle_waiting_list(self, cancelled_reservation: Reservation) -> None:
-        waiting_list = self.db.query(WaitingList).filter(
-            WaitingList.venue_available_time_slot_id == cancelled_reservation.venue_available_time_slot_id
-        ).order_by(WaitingList.created_at).all()
+        waiting_user = self.waiting_list_service.get_next_waiting_user(
+            cancelled_reservation.venue_available_time_slot_id
+        )
 
-        if waiting_list:
-            # 如果等待列表不为空,将第一个等待的用户分配到预约
-            waiting_user = waiting_list[0]
+        if waiting_user:
             new_reservation = Reservation(
                 user_id=waiting_user.user_id,
                 venue_id=cancelled_reservation.venue_id,
@@ -642,7 +644,9 @@ class ReservationService:
                 status=ReservationStatus.PENDING
             )
             self.db.add(new_reservation)
-            self.db.delete(waiting_user)
+
+            self.waiting_list_service.remove_from_waiting_list(waiting_user)
+
             logger.info(
                 f"User {waiting_user.user_id} moved from waiting list to reservation for time slot {cancelled_reservation.venue_available_time_slot_id}")
 
@@ -650,6 +654,9 @@ class ReservationService:
             venue_available_time_slot = cancelled_reservation.venue_available_time_slot
             venue_available_time_slot.capacity -= 1
 
+            self.db.commit()  # 提交事务
+
+            # 发送通知
             self._notify_reservation_available(waiting_user.user_id, new_reservation.id)
 
     def _notify_cancellation(self, reservation: Reservation) -> None:

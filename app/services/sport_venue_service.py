@@ -1,25 +1,27 @@
 from typing import List
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from fastapi import Depends, HTTPException
 
 from app.models.sport_venue import SportVenue
 from app.models.venue import Venue
 from app.schemas.sport_venue import SportVenueCreate, SportVenueUpdate
-from app.deps import get_db
 from app.core.config import get_logger
+from app.core.exceptions import (SportVenueNotFoundError,
+                                 SportVenueDuplicateError,
+                                 SportVenueUpdateError,
+                                 SportVenueDeleteError)
 
 logger = get_logger(__name__)
 
 
 class SportVenueService:
-    def __init__(self, db: Session = Depends(get_db)):
+    def __init__(self, db: Session):
         self.db = db
 
     def get_sport_venue(self, sport_venue_id: int) -> SportVenue:
         sport_venue = self.db.query(SportVenue).filter(SportVenue.id == sport_venue_id).first()
         if not sport_venue:
-            raise HTTPException(status_code=404, detail="Sport venue not found")
+            raise SportVenueNotFoundError(f"SportVenue with id {sport_venue_id} not found")
         return sport_venue
 
     def get_sport_venues(self, skip: int = 0, limit: int = 100, sort_by: str = "name") -> List[SportVenue]:
@@ -35,7 +37,7 @@ class SportVenueService:
             return db_sport_venue
         except IntegrityError:
             self.db.rollback()
-            raise HTTPException(status_code=400, detail="Sport venue with this name already exists")
+            raise SportVenueDuplicateError("Sport venue with this name already exists")
 
     def update_sport_venue(self, sport_venue_id: int, sport_venue: SportVenueUpdate) -> SportVenue:
         db_sport_venue = self.get_sport_venue(sport_venue_id)
@@ -49,7 +51,7 @@ class SportVenueService:
             return db_sport_venue
         except IntegrityError:
             self.db.rollback()
-            raise HTTPException(status_code=400, detail="Update failed due to constraint violation")
+            raise SportVenueUpdateError("Update failed due to constraint violation")
 
     def delete_sport_venue(self, sport_venue_id: int):
         db_sport_venue = self.get_sport_venue(sport_venue_id)
@@ -69,7 +71,7 @@ class SportVenueService:
         except Exception as e:
             self.db.rollback()
             logger.error(f"Failed to delete sport venue: {str(e)}")
-            raise HTTPException(status_code=500, detail="Failed to delete sport venue")
+            raise SportVenueDeleteError("Failed to delete sport venue")
 
     def get_venues_by_sport_venue(self, sport_venue_id: int) -> List[Venue]:
         sport_venue = self.get_sport_venue(sport_venue_id)

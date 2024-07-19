@@ -1,15 +1,17 @@
 from typing import List
 from sqlalchemy.orm import Session
-from fastapi import Depends, HTTPException
+from fastapi import HTTPException
 
 from app.models.facility import Facility
 from app.models.venue import Venue
 from app.schemas.facility import FacilityCreate, FacilityUpdate
-from app.deps import get_db
+from app.core.config import get_logger
+
+logger = get_logger(__name__)
 
 
 class FacilityService:
-    def __init__(self, db: Session = Depends(get_db)):
+    def __init__(self, db: Session):
         self.db = db
 
     def get_facility(self, facility_id: int) -> Facility:

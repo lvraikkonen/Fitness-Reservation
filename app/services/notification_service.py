@@ -1,13 +1,11 @@
 from typing import List
 from sqlalchemy.orm import Session
-from fastapi import Depends, HTTPException
 
 from app.models.user import User
 from app.models.notification import Notification
 from app.schemas.notification import NotificationCreate, NotificationUpdate
 from app.schemas.reservation import ReservationRead
 from app.core.exceptions import NotificationNotFoundError, UserNotFoundError
-from app.deps import get_db
 from app.core.config import get_logger
 from app.utils.templates import get_notification_template
 from app.utils.email import send_email_async
@@ -17,7 +15,7 @@ logger = get_logger(__name__)
 
 
 class NotificationService:
-    def __init__(self, db: Session = Depends(get_db)):
+    def __init__(self, db: Session):
         self.db = db
 
     def get_notification(self, notification_id: int) -> Notification:

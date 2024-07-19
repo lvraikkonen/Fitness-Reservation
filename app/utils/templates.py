@@ -1,11 +1,12 @@
 from typing import Dict, Any
-import os
+from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 
 class TemplateManager:
     def __init__(self):
-        template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates')
+        current_file = Path(__file__)
+        template_dir = current_file.parent.parent / 'templates'
         self.env = Environment(
             loader=FileSystemLoader(template_dir),
             autoescape=select_autoescape(['html', 'xml'])

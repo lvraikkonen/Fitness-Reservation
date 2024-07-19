@@ -1,7 +1,6 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from fastapi import Depends
 from sqlalchemy import func
 
 from app.models.reservation import ReservationStatus, Reservation
@@ -11,15 +10,15 @@ from app.models.venue_available_time_slot import VenueAvailableTimeSlot
 from app.models.facility import Facility
 from app.models.leader_reserved_time import LeaderReservedTime
 from app.schemas.venue import VenueCreate, VenueUpdate, VenueStats
-from app.deps import get_db
 from app.core.config import get_logger
 from app.core.exceptions import (VenueNotFoundError, SportVenueNotFoundError,
                                  VenueCreateError, VenueUpdateError, VenueDeleteError)
 
 logger = get_logger(__name__)
 
+
 class VenueService:
-    def __init__(self, db: Session = Depends(get_db)):
+    def __init__(self, db: Session):
         self.db = db
 
     def get_venue(self, venue_id: int) -> Venue:
