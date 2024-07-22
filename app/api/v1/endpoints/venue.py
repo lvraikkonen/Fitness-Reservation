@@ -12,7 +12,7 @@ router = APIRouter()
 
 
 @router.get("/venues", response_model=List[VenueRead])
-def get_venues(
+def list_venues(
     sport_venue_id: Optional[int] = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
@@ -20,6 +20,23 @@ def get_venues(
 ):
     venue_service = VenueService(db)
     return venue_service.get_venues(sport_venue_id=sport_venue_id, skip=skip, limit=limit)
+
+
+@router.get("/venues/search", response_model=List[VenueRead])
+def search_venues(
+    query: str = Query(..., min_length=1),
+    db: Session = Depends(get_db)
+):
+    venue_service = VenueService(db)
+    return venue_service.search_venues(query)
+
+
+@router.get("/venues/stats", response_model=VenueStats)
+def get_venue_stats(
+    db: Session = Depends(get_db)
+):
+    venue_service = VenueService(db)
+    return venue_service.get_venue_stats()
 
 
 @router.post("/venues", response_model=VenueRead, status_code=status.HTTP_201_CREATED)
@@ -106,15 +123,6 @@ def set_venue_maintenance(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.get("/venues/search", response_model=List[VenueRead])
-def search_venues(
-    query: str = Query(..., min_length=1),
-    db: Session = Depends(get_db)
-):
-    venue_service = VenueService(db)
-    return venue_service.search_venues(query)
-
-
 @router.post("/venues/batch", response_model=List[VenueRead])
 def create_venues_batch(
     venues: List[VenueCreate],
@@ -128,9 +136,10 @@ def create_venues_batch(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.get("/venues/stats", response_model=VenueStats)
-def get_venue_stats(
-    db: Session = Depends(get_db)
-):
-    venue_service = VenueService(db)
-    return venue_service.get_venue_stats()
+# @router.get("/{venue_id}/facilities", response_model=List[FacilityRead])
+# def get_venue_facilities(venue_id: int, db: Session = Depends(get_db)):
+#     venue_service = VenueService(db)
+#     try:
+#         return venue_service.get_venue_facilities(venue_id)
+#     except VenueNotFoundError as e:
+#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

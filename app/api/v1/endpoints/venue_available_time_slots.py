@@ -9,26 +9,29 @@ from app.services.venue_available_time_slot_service import VenueAvailableTimeSlo
 from app.schemas.venue_available_time_slot import (
     VenueAvailableTimeSlotCreate,
     VenueAvailableTimeSlotUpdate,
-    VenueAvailableTimeSlotInDB
+    VenueAvailableTimeSlotInDB,
+    VenueAvailableTimeSlotListResponse
 )
 
 router = APIRouter()
 
 
-@router.get("/{venue_id}/available-slots", response_model=List[VenueAvailableTimeSlotInDB])
-def get_available_slots(
+@router.get("/{venue_id}/available-slots", response_model=VenueAvailableTimeSlotListResponse)
+def list_venue_available_slots(
     venue_id: int,
     start_date: date = Query(...),
     end_date: date = Query(...),
     db: Session = Depends(get_db)
 ):
     service = VenueAvailableTimeSlotService(db)
-    slots = service.get_available_slots(venue_id, start_date, end_date)
-    return slots
+    slots, total = service.get_available_slots(venue_id, start_date, end_date)
+    slot_data = [VenueAvailableTimeSlotInDB.from_orm(slot) for slot in slots]
+
+    return VenueAvailableTimeSlotListResponse(items=slot_data, total=total)
 
 
 @router.post("/{venue_id}/available-slots", response_model=VenueAvailableTimeSlotInDB)
-def create_available_slot(
+def create_venue_available_slot(
     venue_id: int,
     slot: VenueAvailableTimeSlotCreate,
     current_user: User = Depends(get_current_admin),

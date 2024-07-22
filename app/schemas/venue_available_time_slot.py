@@ -1,5 +1,5 @@
 from pydantic import BaseModel, field_validator
-from typing import Optional
+from typing import Optional, List
 from datetime import date, time, datetime
 from app.services.venue_service import VenueService
 
@@ -73,3 +73,8 @@ class VenueAvailableTimeSlotInDB(VenueAvailableTimeSlotBase):
 
     class Config:
         from_attributes = True
+
+
+class VenueAvailableTimeSlotListResponse(BaseModel):
+    items: List[VenueAvailableTimeSlotInDB]
+    total: int

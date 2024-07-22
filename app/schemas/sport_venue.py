@@ -7,7 +7,6 @@ class SportVenueBase(BaseModel):
     name: str
     location: str
     description: Optional[str] = None
-    capacity: Optional[int] = Field(None, ge=0)
 
 
 class SportVenueCreate(SportVenueBase):
@@ -18,7 +17,6 @@ class SportVenueUpdate(BaseModel):
     name: Optional[str] = None
     location: Optional[str] = None
     description: Optional[str] = None
-    capacity: Optional[int] = Field(None, ge=0)
 
 
 class SportVenueInDB(SportVenueBase):

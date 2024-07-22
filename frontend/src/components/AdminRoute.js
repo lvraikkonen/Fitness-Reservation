@@ -10,8 +10,8 @@ const AdminRoute = ({ children }) => {
     return <div>Loading...</div>; // 或者使用一个加载动画组件
   }
 
-  if (!user || user.role!==1) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+  if (!user || user.role !== 'admin') {
+    return <Navigate to="/login" replace />;
   }
 
   return children;

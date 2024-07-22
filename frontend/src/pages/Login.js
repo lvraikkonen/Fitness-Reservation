@@ -20,16 +20,18 @@ const Login = () => {
     setLoading(true);
     try {
       const user = await login(values);
-      message.success('Login successful');
+      console.log('User role is:', user.role);
+      message.success('登录成功');
       
-      // 根据用户角色决定跳转路径
       const from = location.state?.from?.pathname || 
-                   (user.role === 1 ? '/admin' : '/dashboard');
-      
+                   (user.role === 'admin' ? '/admin/dashboard' : '/dashboard');
+
+      console.log('Navigate to:', from);
+
       navigate(from, { replace: true });
     } catch (error) {
       console.error('Login error:', error);
-      message.error('Login failed: ' + (error.message || 'Unknown error'));
+      message.error('登录失败: ' + (error.response?.data?.detail || error.message || '未知错误'));
     } finally {
       setLoading(false);
     }

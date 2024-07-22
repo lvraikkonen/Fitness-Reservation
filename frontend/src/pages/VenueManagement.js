@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Button, Modal, Form, Input, message } from 'antd';
-import { getVenues } from '../services/api';
+import { getVenues } from '../services/venueService';
 
 const VenueManagement = () => {
   const [venues, setVenues] = useState([]);
@@ -12,8 +12,9 @@ const VenueManagement = () => {
 
   const fetchVenues = async () => {
     try {
-      const response = await getVenues();
-      setVenues(response.data);
+      const data = await getVenues(0, 100); // 获取前100条数据
+      setVenues(data.items);
+      setTotalVenues(data.total);
     } catch (error) {
       message.error('Failed to fetch venues');
     }

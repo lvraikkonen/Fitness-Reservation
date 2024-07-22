@@ -10,7 +10,7 @@ import { ConfigProvider } from 'antd';
 import zhCN from 'antd/lib/locale/zh_CN';
 
 import React from 'react';
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import { Layout } from 'antd';
 import { AuthProvider } from './contexts/AuthContext';
 import Login from './pages/Login';
@@ -59,12 +59,14 @@ function App() {
                 
                 {/* 管理员路由 */}
                 <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
-                  <Route index element={<AdminDashboard />} />
+                  <Route index element={<Navigate to="dashboard" replace />} />
+                  <Route path="dashboard" element={<AdminDashboard />} />
                   <Route path="venues" element={<VenueManagement />} />
                   <Route path="users" element={<UserManagement />} />
                   <Route path="reservations" element={<ReservationManagement />} />
                 </Route>
-                
+
+                {/* 404 页面 */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Content>
