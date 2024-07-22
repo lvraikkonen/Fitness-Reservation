@@ -103,6 +103,21 @@ export const fetchUserReservations = async (venueId = null, page = 1, pageSize =
   }
 };
 
+export const getAllReservations = async (page = 1, pageSize = 10) => {
+  try {
+    const response = await reservationApi.get('/reservations', {
+      params: {
+        skip: (page - 1) * pageSize,
+        limit: pageSize
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching all reservations:', error);
+    throw error;
+  }
+};
+
 export const createReservation = async (venueId, reservationData) => {
   try {
     const user = getUser();

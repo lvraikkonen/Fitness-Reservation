@@ -79,6 +79,36 @@ def get_reservation(
     return reservation
 
 
+@router.get("/reservations", response_model=PaginatedReservationResponse)
+def get_all_reservations(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieve all reservations with pagination.
+
+    Args:
+        skip (int): The number of reservations to skip (for pagination).
+        limit (int): The maximum number of reservations to return (for pagination).
+        current_user (User): The authenticated user making the request.
+        db (Session): The database session.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only administrators can view all reservations")
+
+    reservation_service = ReservationService(db)
+    reservations, total_count = reservation_service.get_all_reservations(skip=skip, limit=limit)
+
+    return PaginatedReservationResponse(
+        reservations=reservations,
+        total_count=total_count,
+        page=skip // limit + 1,
+        page_size=limit
+    )
+
+
 @router.put("/reservations/{reservation_id}", response_model=ReservationRead)
 def update_reservation(
         reservation_id: int,

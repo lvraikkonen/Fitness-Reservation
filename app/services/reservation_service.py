@@ -74,6 +74,38 @@ class ReservationService:
             recurring_reservation_id=reservation.recurring_reservation_id
         )
 
+    def get_all_reservations(self, skip: int = 0, limit: int = 100) -> Tuple[List[ReservationRead], int]:
+        query = (
+            self.db.query(Reservation)
+            .options(
+                joinedload(Reservation.venue_available_time_slot),
+                joinedload(Reservation.venue).joinedload(Venue.sport_venue)
+            )
+            .order_by(Reservation.created_at.desc())
+        )
+
+        total_count = query.count()
+        reservations = query.offset(skip).limit(limit).all()
+
+        reservation_reads = [
+            ReservationRead(
+                id=res.id,
+                user_id=res.user_id,
+                venue_available_time_slot_id=res.venue_available_time_slot_id,
+                date=res.venue_available_time_slot.date,
+                start_time=res.venue_available_time_slot.start_time,
+                end_time=res.venue_available_time_slot.end_time,
+                sport_venue_name=res.venue.sport_venue.name,
+                venue_name=res.venue.name,
+                status=res.status,
+                is_recurring=res.is_recurring,
+                recurring_reservation_id=res.recurring_reservation_id,
+            )
+            for res in reservations
+        ]
+
+        return reservation_reads, total_count
+
     def update_reservation(self, reservation_id: int, reservation: ReservationUpdate):
         db_reservation = self.db.query(Reservation).filter(Reservation.id == reservation_id).first()
         if db_reservation:
