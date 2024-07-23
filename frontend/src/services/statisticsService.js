@@ -22,3 +22,13 @@ export const getStatisticsSummary = async () => {
     throw error;
   }
 };
+
+export const getAdminDashboardStats = async () => {
+  try {
+    const response = await statsApi.get('/admin/dashboard-stats');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching admin dashboard stats:', error);
+    throw error;
+  }
+};

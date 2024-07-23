@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 
 class UserReservationCount(BaseModel):
@@ -45,3 +45,36 @@ class FacilityUsageCount(BaseModel):
 class FacilityUsageStats(BaseModel):
     total_facilities: int
     facility_usage: List[FacilityUsageCount]
+
+
+class DashboardStats(BaseModel):
+    total_users: int
+    total_venues: int
+    today_reservations: int
+
+
+class ReservationTrendStats(BaseModel):
+    dates: List[str]
+    counts: List[int]
+
+
+class TopUserStats(BaseModel):
+    user_id: int
+    username: str
+    reservation_count: int
+
+
+class ReservationStatusStats(BaseModel):
+    PENDING: int = 0
+    CONFIRMED: int = 0
+    CANCELLED: int = 0
+
+
+# 如果你想要一个包含所有仪表板统计信息的综合模型，可以这样定义：
+class ComprehensiveDashboardStats(BaseModel):
+    basic_stats: DashboardStats
+    reservation_trend: ReservationTrendStats
+    top_users: List[TopUserStats]
+    reservation_status: ReservationStatusStats
+    recent_user_activity: Optional[UserActivityStats] = None
+    recent_venue_usage: Optional[VenueUsageStats] = None

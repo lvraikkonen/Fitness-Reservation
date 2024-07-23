@@ -7,7 +7,7 @@ from app.schemas.stats import (UserReservationStats,
                                VenueUsageStats,
                                VenueFeedbackStats,
                                FacilityUsageStats)
-from app.deps import get_db
+from app.deps import get_db, get_current_admin, get_current_user
 from app.services.stats_service import StatsService
 
 router = APIRouter()
@@ -57,3 +57,12 @@ def get_facility_usage_stats(db: Session = Depends(get_db)):
     stats_service = StatsService(db)
     stats = stats_service.get_facility_usage_stats()
     return stats
+
+
+@router.get('/admin/dashboard-stats')
+def get_admin_dashboard_stats(
+        current_admin: User = Depends(get_current_admin),
+        db: Session = Depends(get_db)
+):
+    stats_service = StatsService(db)
+    return stats_service.get_dashboard_stats()
