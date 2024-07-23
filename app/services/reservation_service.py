@@ -468,8 +468,9 @@ class ReservationService:
             raise ReservationException(str(e))
 
     def _validate_reservation_time(self, reservation_data: ReservationCreate, rules: ReservationRules):
-        duration = (datetime.combine(reservation_data.date, reservation_data.end_time) -
-                    datetime.combine(reservation_data.date, reservation_data.start_time))
+        start_datetime = datetime.combine(reservation_data.date, reservation_data.start_time)
+        end_datetime = datetime.combine(reservation_data.date, reservation_data.end_time)
+        duration = end_datetime - start_datetime
         if duration < rules.min_duration or duration > rules.max_duration:
             raise ReservationException("Reservation duration does not meet the rules")
 
@@ -509,18 +510,19 @@ class ReservationService:
             venue_id: int
     ) -> List[VenueAvailableTimeSlot]:
         slots = []
-        current_time = reservation_data.start_time
+        current_time = datetime.combine(reservation_data.date, reservation_data.start_time)
+        end_time = datetime.combine(reservation_data.date, reservation_data.end_time)
         venue = self.db.query(Venue).filter(Venue.id == venue_id).first()
         if not venue:
             raise ReservationException("Venue not found")
 
-        while current_time < reservation_data.end_time:
-            next_time = min(current_time + timedelta(minutes=30), reservation_data.end_time)
+        while current_time < end_time:
+            next_time = min(current_time + timedelta(minutes=30), end_time)
             slot = self.db.query(VenueAvailableTimeSlot).filter(
                 VenueAvailableTimeSlot.venue_id == venue_id,
                 VenueAvailableTimeSlot.date == reservation_data.date,
-                VenueAvailableTimeSlot.start_time == current_time,
-                VenueAvailableTimeSlot.end_time == next_time
+                VenueAvailableTimeSlot.start_time == current_time.time(),
+                VenueAvailableTimeSlot.end_time == next_time.time()
             ).first()
 
             if not slot:

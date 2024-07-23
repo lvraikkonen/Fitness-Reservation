@@ -1,13 +1,12 @@
-// pages/Reservations.js
 import React, { useState, useEffect, useRef } from 'react';
-import { Row, Col, Select, message } from 'antd';
-import MainLayout from '../components/MainLayout';
+import { Row, Col, Select, message, Spin, Modal } from 'antd';
 import VenueCalendar from '../components/VenueCalendar';
 import ReservationForm from '../components/ReservationForm';
 import ReservationList from '../components/ReservationList';
 import { fetchVenues, fetchUserReservations, createReservation, cancelReservation } from '../services/reservationService';
 
 const { Option } = Select;
+const { confirm } = Modal;
 
 const Reservations = () => {
   const [venues, setVenues] = useState([]);
@@ -20,7 +19,6 @@ const Reservations = () => {
   const [pageSize, setPageSize] = useState(20);
 
   const calendarRef = useRef(null);
-  const listRef = useRef(null);
 
   useEffect(() => {
     loadVenues();
@@ -83,64 +81,70 @@ const Reservations = () => {
     }
   };
 
-  const handleCancelReservation = async (reservationId) => {
-    try {
-      await cancelReservation(reservationId);
-      message.success('Reservation cancelled successfully');
-      loadUserReservations();
-      if (calendarRef.current) {
-        calendarRef.current.refreshCalendar();
-      }
-    } catch (error) {
-      message.error('Failed to cancel reservation');
-    }
+  const handleCancelReservation = (reservationId) => {
+    confirm({
+      title: 'Are you sure you want to cancel this reservation?',
+      content: 'This action cannot be undone.',
+      onOk: async () => {
+        try {
+          await cancelReservation(reservationId);
+          message.success('Reservation cancelled successfully');
+          loadUserReservations();
+          if (calendarRef.current) {
+            calendarRef.current.refreshCalendar();
+          }
+        } catch (error) {
+          message.error('Failed to cancel reservation');
+        }
+      },
+    });
   };
 
   return (
-    <MainLayout>
-      <div>
-        <h1>Venue Reservations</h1>
-        <Row gutter={[16, 16]}>
-          <Col span={24}>
-            <Select
-              style={{ width: 200 }}
-              placeholder="Select a venue"
-              onChange={handleVenueChange}
-              value={selectedVenue}
-              loading={loading}
-            >
-              {venues.map(venue => (
-                <Option key={venue.id} value={venue.id}>{venue.name}</Option>
-              ))}
-            </Select>
-          </Col>
-          {selectedVenue && (
-            <>
-              <Col span={24} style={{ height: 'calc(70% - 32px)'}}>
-                <VenueCalendar 
-                  venueId={selectedVenue} 
-                  ref={calendarRef}
-                />
-              </Col>
-              <Col span={24}>
-                <ReservationForm onSubmit={handleCreateReservation} />
-              </Col>
-              <Col span={24}>
-                <ReservationList 
-                  reservations={reservations}
-                  onCancel={handleCancelReservation}
-                  loading={loading}
-                  total={totalReservations}
-                  current={currentPage}
-                  pageSize={pageSize}
-                  onPageChange={handlePageChange}
-                />
-              </Col>
-            </>
-          )}
-        </Row>
-      </div>
-    </MainLayout>
+    <Spin spinning={loading}>
+        <div>
+          <h1>Venue Reservations</h1>
+          <Row gutter={[16, 16]}>
+            <Col span={24}>
+              <Select
+                style={{ width: 200 }}
+                placeholder="Select a venue"
+                onChange={handleVenueChange}
+                value={selectedVenue}
+                loading={loading}
+              >
+                {venues.map(venue => (
+                  <Option key={venue.id} value={venue.id}>{venue.name}</Option>
+                ))}
+              </Select>
+            </Col>
+            {selectedVenue && (
+              <>
+                <Col span={24} style={{ height: 'calc(70% - 32px)'}}>
+                  <VenueCalendar 
+                    venueId={selectedVenue} 
+                    ref={calendarRef}
+                  />
+                </Col>
+                <Col span={24}>
+                  <ReservationForm onSubmit={handleCreateReservation} />
+                </Col>
+                <Col span={24}>
+                  <ReservationList 
+                    reservations={reservations}
+                    onCancel={handleCancelReservation}
+                    loading={loading}
+                    total={totalReservations}
+                    current={currentPage}
+                    pageSize={pageSize}
+                    onPageChange={handlePageChange}
+                  />
+                </Col>
+              </>
+            )}
+          </Row>
+        </div>
+      </Spin>
   );
 };
 

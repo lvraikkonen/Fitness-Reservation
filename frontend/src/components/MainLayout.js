@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 import { Layout, Menu, Breadcrumb, Avatar } from 'antd';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   HomeOutlined,
   CalendarOutlined,
@@ -50,72 +51,74 @@ const MainLayout = ({ children }) => {
   }
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider
-        collapsible
-        collapsed={collapsed}
-        onCollapse={setCollapsed}
-        style={{
-          overflow: 'auto',
-          height: '100vh',
-          position: 'fixed',
-          left: 0,
-          top: 0,
-          bottom: 0,
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        <Logo collapsed={collapsed} />
-        <Menu theme="dark" defaultSelectedKeys={[location.pathname]} mode="inline" style={{ flex: 1, paddingBottom: '48px' }}>
-          <Menu.Item key="/dashboard" icon={<HomeOutlined />}>
-            <Link to="/dashboard">Dashboard</Link>
-          </Menu.Item>
-          <Menu.Item key="/venues" icon={<CalendarOutlined />}>
-            <Link to="/venues">Venues</Link>
-          </Menu.Item>
-          <Menu.Item key="/reservations" icon={<CalendarOutlined />}>
-            <Link to="/reservations">Reservations</Link>
-          </Menu.Item>
-          {user.role === 'admin' && (
-            <Menu.Item key="/statistics" icon={<BarChartOutlined />}>
-              <Link to="/statistics">Statistics</Link>
+    <ErrorBoundary fallback={<div>Something went wrong</div>}>
+      <Layout style={{ minHeight: '100vh' }}>
+        <Sider
+          collapsible
+          collapsed={collapsed}
+          onCollapse={setCollapsed}
+          style={{
+            overflow: 'auto',
+            height: '100vh',
+            position: 'fixed',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <Logo collapsed={collapsed} />
+          <Menu theme="dark" defaultSelectedKeys={[location.pathname]} mode="inline" style={{ flex: 1, paddingBottom: '48px' }}>
+            <Menu.Item key="/dashboard" icon={<HomeOutlined />}>
+              <Link to="/dashboard">Dashboard</Link>
             </Menu.Item>
-          )}
-          <Menu.Item key="/feedback" icon={<MessageOutlined />}>
-            <Link to="/feedback">Feedback</Link>
-          </Menu.Item>
-        </Menu>
-        <Menu theme="dark" mode="inline" selectable={false} style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
-          <SubMenu 
-            key="user" 
-            icon={<Avatar icon={<UserOutlined />} />} 
-            title={user.username}
-          >
-            <Menu.Item key="profile" icon={<UserOutlined />}>
-              <Link to="/profile">Profile</Link>
+            <Menu.Item key="/venues" icon={<CalendarOutlined />}>
+              <Link to="/venues">Venues</Link>
             </Menu.Item>
-            <Menu.Item key="settings" icon={<SettingOutlined />}>
-              <Link to="/settings">Settings</Link>
+            <Menu.Item key="/reservations" icon={<CalendarOutlined />}>
+              <Link to="/reservations">Reservations</Link>
             </Menu.Item>
-            <Menu.Item key="logout" icon={<LogoutOutlined />} onClick={handleLogout}>
-              Logout
+            {user && user.role === 'admin' && (
+              <Menu.Item key="/statistics" icon={<BarChartOutlined />}>
+                <Link to="/statistics">Statistics</Link>
+              </Menu.Item>
+            )}
+            <Menu.Item key="/feedback" icon={<MessageOutlined />}>
+              <Link to="/feedback">Feedback</Link>
             </Menu.Item>
-          </SubMenu>
-        </Menu>
-      </Sider>
-      <Layout className="site-layout" style={{ marginLeft: collapsed ? 80 : 200, transition: 'all 0.2s' }}>
-        <Content style={{ margin: '0 16px' }}>
-          <Breadcrumb style={{ margin: '16px 0' }}>
-            {getBreadcrumbItems()}
-          </Breadcrumb>
-          <div className="site-layout-background" style={{ padding: 24, minHeight: 360 }}>
-            {children}
-          </div>
-        </Content>
-        <Footer style={{ textAlign: 'center' }}>Fitness Reservation System ©2024</Footer>
+          </Menu>
+          <Menu theme="dark" mode="inline" selectable={false} style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+            <SubMenu 
+              key="user" 
+              icon={<Avatar icon={<UserOutlined />} />} 
+              title={user ? user.username : 'User'}
+            >
+              <Menu.Item key="profile" icon={<UserOutlined />}>
+                <Link to="/profile">Profile</Link>
+              </Menu.Item>
+              <Menu.Item key="settings" icon={<SettingOutlined />}>
+                <Link to="/settings">Settings</Link>
+              </Menu.Item>
+              <Menu.Item key="logout" icon={<LogoutOutlined />} onClick={handleLogout}>
+                Logout
+              </Menu.Item>
+            </SubMenu>
+          </Menu>
+        </Sider>
+        <Layout className="site-layout" style={{ marginLeft: collapsed ? 80 : 200, transition: 'all 0.2s' }}>
+          <Content style={{ margin: '0 16px' }}>
+            <Breadcrumb style={{ margin: '16px 0' }}>
+              {getBreadcrumbItems()}
+            </Breadcrumb>
+            <div className="site-layout-background" style={{ padding: 24, minHeight: 360 }}>
+              <Outlet />
+            </div>
+          </Content>
+          <Footer style={{ textAlign: 'center' }}>Fitness Reservation System ©2024</Footer>
+        </Layout>
       </Layout>
-    </Layout>
+    </ErrorBoundary>
   );
 };
 

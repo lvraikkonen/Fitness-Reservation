@@ -23,12 +23,23 @@ export const fetchVenueCalendar = async (venueId, startDate, endDate) => {
       params: { start_date: startDate, end_date: endDate }
     });
     
+    // 检查响应数据结构
+    if (!response.data || !Array.isArray(response.data.items)) {
+      console.error('Unexpected response format:', response.data);
+      return {};
+    }
+
     // 将数据转换为所需的格式
-    const formattedData = response.data.reduce((acc, slot) => {
+    const formattedData = response.data.items.reduce((acc, slot) => {
       if (!acc[slot.date]) {
         acc[slot.date] = [];
       }
-      acc[slot.date].push(slot);
+      acc[slot.date].push({
+        id: slot.id,
+        startTime: slot.start_time,
+        endTime: slot.end_time,
+        capacity: slot.capacity
+      });
       return acc;
     }, {});
 
@@ -125,6 +136,10 @@ export const createReservation = async (venueId, reservationData) => {
       ...reservationData,
       user_id: user.id,
       venue_id: venueId,
+      status: reservationData.status || 'pending',
+      is_recurring: reservationData.is_recurring || false,
+      recurring_pattern: reservationData.recurring_pattern || null,
+      recurrence_end_date: reservationData.recurrence_end_date || null,
     };
     console.log('Sending reservation data:', enhancedReservationData);
     const response = await reservationApi.post('/reservations', enhancedReservationData);

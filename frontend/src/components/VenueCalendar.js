@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Badge, Modal, Button, message, Spin, Select, Row, Col } from 'antd';
+import { Calendar, Modal, Button, message, Spin, Select, Row, Col } from 'antd';
 import dayjs from 'dayjs';
 import { fetchVenueCalendar, createReservation } from '../services/reservationService';
 import './VenueCalendar.css';
+import { useAuth } from '../contexts/AuthContext';
 
 const { Option } = Select;
 
@@ -13,6 +14,7 @@ const VenueCalendar = ({ venueId }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(dayjs().month());
   const [currentYear, setCurrentYear] = useState(dayjs().year());
+  const { user } = useAuth();  // 使用 AuthContext 获取用户信息
 
   useEffect(() => {
     loadCalendarData();
@@ -52,7 +54,7 @@ const VenueCalendar = ({ venueId }) => {
   const disabledDate = (current) => {
     const dateStr = current.format('YYYY-MM-DD');
     const dayData = calendarData[dateStr];
-    return !dayData || dayData.length === 0;
+    return !dayData || dayData.length === 0 || current < dayjs().startOf('day');
   };
 
   const handleDateSelect = (value) => {
@@ -68,14 +70,20 @@ const VenueCalendar = ({ venueId }) => {
     try {
       await createReservation(venueId, {
         date: selectedDate.format('YYYY-MM-DD'),
-        start_time: timeSlot.start_time,
-        end_time: timeSlot.end_time,
+        start_time: timeSlot.startTime,
+        end_time: timeSlot.endTime,
+        user_id: user.id,
+        venue_id: venueId,
+        status: 'pending', // 或者其他适当的初始状态
+        is_recurring: false,
+        // 如果需要，可以添加 recurring_pattern 和 recurrence_end_date
       });
       message.success('预约成功');
       setIsModalVisible(false);
       loadCalendarData();
     } catch (error) {
-      message.error('预约失败');
+      console.error('Reservation error:', error);
+      message.error('预约失败：' + (error.response?.data?.detail || error.message));
     }
   };
 
@@ -132,24 +140,28 @@ const VenueCalendar = ({ venueId }) => {
         />
       </Spin>
       <Modal
-        title={`选择入馆时段 - ${selectedDate ? selectedDate.format('YYYY-MM-DD') : ''}`}
+        title={`选择预约时段 - ${selectedDate ? selectedDate.format('YYYY-MM-DD') : ''}`}
         visible={isModalVisible}
         onCancel={() => setIsModalVisible(false)}
         footer={null}
       >
         <div className="time-slots">
-          {selectedDate && calendarData[selectedDate.format('YYYY-MM-DD')]?.map((slot) => (
-            <Button
-              key={slot.id}
-              onClick={() => handleReservation(slot)}
-              type="primary"
-              disabled={slot.capacity <= 0}
-              className="time-slot-button"
-            >
-              {dayjs(slot.start_time, 'HH:mm:ss').format('HH:mm')} - {dayjs(slot.end_time, 'HH:mm:ss').format('HH:mm')} 
-              (剩余: {slot.capacity})
-            </Button>
-          ))}
+          {selectedDate && calendarData[selectedDate.format('YYYY-MM-DD')] ? (
+            calendarData[selectedDate.format('YYYY-MM-DD')].map((slot) => (
+              <Button
+                key={slot.id}
+                onClick={() => handleReservation(slot)}
+                type="primary"
+                disabled={slot.capacity <= 0}
+                className="time-slot-button"
+              >
+                {slot.startTime.substring(0, 5)} - {slot.endTime.substring(0, 5)}
+                (剩余: {slot.capacity})
+              </Button>
+            ))
+          ) : (
+            <p>该日期没有可用的预约时段。</p>
+          )}
         </div>
       </Modal>
     </div>

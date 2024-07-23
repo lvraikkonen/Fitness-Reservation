@@ -22,6 +22,7 @@ import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import PrivateRoute from './components/PrivateRoute';
 import AdminRoute from './components/AdminRoute';
+import MainLayout from './components/MainLayout';
 import AdminLayout from './components/AdminLayout';
 import NotFound from './pages/NotFound';
 
@@ -51,12 +52,16 @@ function App() {
                 <Route path="/" element={<Login />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
-                <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-                <Route path="/reservations" element={<PrivateRoute><Reservations /></PrivateRoute>} />
-                <Route path="/feedback" element={<PrivateRoute><Feedback /></PrivateRoute>} />
-                <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
-                <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
-                
+
+                {/* 普通用户路由 */}
+                <Route element={<PrivateRoute><MainLayout /></PrivateRoute>}>
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/reservations" element={<Reservations />} />
+                  <Route path="/feedback" element={<Feedback />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/settings" element={<Settings />} />
+                </Route>
+
                 {/* 管理员路由 */}
                 <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
                   <Route index element={<Navigate to="dashboard" replace />} />
