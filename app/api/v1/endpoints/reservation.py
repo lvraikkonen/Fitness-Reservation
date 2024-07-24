@@ -5,8 +5,10 @@ from datetime import date
 from app.deps import get_db, get_current_user, get_current_admin
 from app.models.user import User
 from app.models.reservation import ReservationStatus
+from app.schemas.venue_available_time_slot import VenueAvailabilityRead
 from app.services.reservation_service import ReservationService
-from app.schemas.reservation import ReservationCreate, ReservationUpdate, ReservationRead, PaginatedReservationResponse
+from app.schemas.reservation import ReservationCreate, ReservationUpdate, ReservationRead, PaginatedReservationResponse, \
+    RecurringReservationCreate, RecurringReservationRead, RecurringReservationUpdate
 from app.schemas.reservation import VenueCalendarResponse, ConflictCheckResult
 from app.schemas.waiting_list import WaitingListRead
 from app.core.exceptions import ReservationException, ReservationNotFoundError
@@ -244,3 +246,97 @@ def get_user_reservations(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail="An unexpected error occurred")
+
+
+# 周期性预约
+@router.post("/recurring-reservations", response_model=RecurringReservationRead)
+def create_recurring_reservation(
+    recurring_reservation: RecurringReservationCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    reservation_service = ReservationService(db)
+    return reservation_service.create_recurring_reservation(recurring_reservation, current_user.id)
+
+
+@router.get("/recurring-reservations/{recurring_id}", response_model=RecurringReservationRead)
+def get_recurring_reservation(
+    recurring_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    reservation_service = ReservationService(db)
+    return reservation_service.get_recurring_reservation(recurring_id, current_user.id)
+
+
+@router.put("/recurring-reservations/{recurring_id}", response_model=RecurringReservationRead)
+def update_recurring_reservation(
+    recurring_id: int,
+    recurring_reservation: RecurringReservationUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    reservation_service = ReservationService(db)
+    return reservation_service.update_recurring_reservation(recurring_id, recurring_reservation, current_user.id)
+
+
+@router.delete("/recurring-reservations/{recurring_id}", status_code=204)
+def delete_recurring_reservation(
+    recurring_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    reservation_service = ReservationService(db)
+    reservation_service.delete_recurring_reservation(recurring_id, current_user.id)
+
+
+# 用户预约历史
+@router.get("/users/{user_id}/reservation-history", response_model=PaginatedReservationResponse)
+def get_user_reservation_history(
+        user_id: int,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+    if current_user.id != user_id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized to view this user's history")
+
+    reservation_service = ReservationService(db)
+    return reservation_service.get_user_reservation_history(user_id, start_date, end_date, page, page_size)
+
+
+# 场地可用性检查
+@router.get("/venues/{venue_id}/availability", response_model=List[VenueAvailabilityRead])
+def check_venue_availability(
+    venue_id: int,
+    start_date: date,
+    end_date: date,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    reservation_service = ReservationService(db)
+    return reservation_service.check_venue_availability(venue_id, start_date, end_date)
+
+
+# 批量预约操作（适用于管理员）
+@router.post("/reservations/bulk", response_model=List[ReservationRead])
+def bulk_create_reservations(
+    reservations: List[ReservationCreate],
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    reservation_service = ReservationService(db)
+    return reservation_service.bulk_create_reservations(reservations)
+
+
+@router.put("/reservations/bulk", response_model=List[ReservationRead])
+def bulk_update_reservations(
+    reservations: List[ReservationUpdate],
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    reservation_service = ReservationService(db)
+    return reservation_service.bulk_update_reservations(reservations)

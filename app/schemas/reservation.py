@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date, time
 from app.models.reservation import ReservationStatus
@@ -104,3 +104,66 @@ class VenueAvailableTimeSlotRead(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class RecurringReservationCreate(BaseModel):
+    user_id: int
+    venue_id: int
+    start_date: date
+    end_date: date
+    start_time: time
+    end_time: time
+    recurrence_pattern: RecurrencePattern
+    days_of_week: Optional[List[int]] = Field(None, description="Required for weekly pattern. 0 for Monday, 6 for Sunday")
+    day_of_month: Optional[int] = Field(None, ge=1, le=31, description="Required for monthly pattern")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "user_id": 1,
+                "venue_id": 1,
+                "start_date": "2024-07-01",
+                "end_date": "2024-12-31",
+                "start_time": "09:00:00",
+                "end_time": "10:00:00",
+                "recurrence_pattern": "weekly",
+                "days_of_week": [1, 3, 5]  # Monday, Wednesday, Friday
+            }
+        }
+
+class RecurringReservationRead(BaseModel):
+    id: int
+    user_id: int
+    venue_id: int
+    start_date: date
+    end_date: date
+    start_time: time
+    end_time: time
+    recurrence_pattern: RecurrencePattern
+    days_of_week: Optional[List[int]]
+    day_of_month: Optional[int]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+
+class RecurringReservationUpdate(BaseModel):
+    end_date: Optional[date]
+    start_time: Optional[time]
+    end_time: Optional[time]
+    recurrence_pattern: Optional[RecurrencePattern]
+    days_of_week: Optional[List[int]]
+    day_of_month: Optional[int]
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "end_date": "2025-06-30",
+                "start_time": "10:00:00",
+                "end_time": "11:00:00",
+                "recurrence_pattern": "weekly",
+                "days_of_week": [2, 4, 6]  # Tuesday, Thursday, Saturday
+            }
+        }

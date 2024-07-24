@@ -17,10 +17,11 @@ from app.models.venue_available_time_slot import VenueAvailableTimeSlot
 from app.models.waiting_list import WaitingList
 from app.schemas.reservation import (ReservationCreate, ReservationUpdate, VenueAvailableTimeSlotRead,
                                      ReservationRead, PaginatedReservationResponse,
-                                     ConflictCheckResult)
+                                     ConflictCheckResult, RecurringReservationRead, RecurringReservationUpdate,
+                                     RecurringReservationCreate)
 from app.schemas.reservation import VenueCalendarResponse, CalendarTimeSlot
 from app.schemas.waiting_list import WaitingListReadWithVenueAvailableTimeSlot, WaitingListRead
-from app.schemas.venue_available_time_slot import VenueAvailableTimeSlotRead
+from app.schemas.venue_available_time_slot import VenueAvailableTimeSlotRead, VenueAvailabilityRead
 from app.services.notification_service import NotificationService
 from app.services.waiting_list_service import WaitingListService
 from app.services.venue_available_time_slot_service import VenueAvailableTimeSlotService
@@ -1014,3 +1015,38 @@ class ReservationService:
             self.db.rollback()
             logger.error(f"Error occurred while handling venue closure or time slot adjustment: {str(e)}")
             raise ReservationException(f"Failed to handle venue closure or time slot adjustment: {str(e)}")
+
+    def create_recurring_reservation(self, recurring_reservation: RecurringReservationCreate,
+                                     user_id: int) -> RecurringReservationRead:
+        # 实现创建周期性预约的逻辑
+        pass
+
+    def get_recurring_reservation(self, recurring_id: int, user_id: int) -> RecurringReservationRead:
+        # 实现获取周期性预约的逻辑
+        pass
+
+    def update_recurring_reservation(self, recurring_id: int, recurring_reservation: RecurringReservationUpdate,
+                                     user_id: int) -> RecurringReservationRead:
+        # 实现更新周期性预约的逻辑
+        pass
+
+    def delete_recurring_reservation(self, recurring_id: int, user_id: int) -> None:
+        # 实现删除周期性预约的逻辑
+        pass
+
+    def get_user_reservation_history(self, user_id: int, start_date: Optional[date], end_date: Optional[date],
+                                     page: int, page_size: int) -> PaginatedReservationResponse:
+        # 实现获取用户预约历史的逻辑
+        pass
+
+    def check_venue_availability(self, venue_id: int, start_date: date, end_date: date) -> List[VenueAvailabilityRead]:
+        # 实现检查场地可用性的逻辑
+        pass
+
+    def bulk_create_reservations(self, reservations: List[ReservationCreate]) -> List[ReservationRead]:
+        # 实现批量创建预约的逻辑
+        pass
+
+    def bulk_update_reservations(self, reservations: List[ReservationUpdate]) -> List[ReservationRead]:
+        # 实现批量更新预约的逻辑
+        pass

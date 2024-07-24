@@ -109,16 +109,35 @@ def create_sample_facilities(db: Session):
 
 
 def create_sample_reservation_rules(db: Session):
-    rules = [
-        ReservationRules(venue_id=1, user_role=UserRole.EMPLOYEE, min_duration=timedelta(hours=1),
-                         max_duration=timedelta(hours=2), max_daily_reservations=1,
-                         max_weekly_reservations=3, max_monthly_reservations=10),
-        ReservationRules(venue_id=1, user_role=UserRole.VIP, min_duration=timedelta(hours=1),
-                         max_duration=timedelta(hours=3), max_daily_reservations=2,
-                         max_weekly_reservations=5, max_monthly_reservations=15),
-    ]
-    db.add_all(rules)
+    venues = db.query(Venue).all()
+
+    for venue in venues:
+        # 为每个场馆创建员工规则
+        employee_rule = ReservationRules(
+            venue_id=venue.id,
+            user_role=UserRole.EMPLOYEE,
+            min_duration=timedelta(hours=1),
+            max_duration=timedelta(hours=2),
+            max_daily_reservations=2,
+            max_weekly_reservations=4,
+            max_monthly_reservations=10
+        )
+
+        # 为每个场馆创建VIP规则
+        vip_rule = ReservationRules(
+            venue_id=venue.id,
+            user_role=UserRole.VIP,
+            min_duration=timedelta(hours=1),
+            max_duration=timedelta(hours=3),
+            max_daily_reservations=4,
+            max_weekly_reservations=6,
+            max_monthly_reservations=20
+        )
+
+        db.add_all([employee_rule, vip_rule])
+
     db.commit()
+    print(f"Created reservation rules for {len(venues)} venues.")
 
 
 def create_sample_available_time_slots(db: Session):

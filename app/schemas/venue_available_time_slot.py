@@ -78,3 +78,40 @@ class VenueAvailableTimeSlotInDB(VenueAvailableTimeSlotBase):
 class VenueAvailableTimeSlotListResponse(BaseModel):
     items: List[VenueAvailableTimeSlotInDB]
     total: int
+
+
+class TimeSlotAvailability(BaseModel):
+    start_time: time
+    end_time: time
+    available_capacity: int
+    total_capacity: int
+
+
+class VenueAvailabilityRead(BaseModel):
+    date: date
+    venue_id: int
+    venue_name: str
+    time_slots: List[TimeSlotAvailability]
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "date": "2024-07-01",
+                "venue_id": 1,
+                "venue_name": "Main Gym",
+                "time_slots": [
+                    {
+                        "start_time": "09:00:00",
+                        "end_time": "10:00:00",
+                        "available_capacity": 5,
+                        "total_capacity": 10
+                    },
+                    {
+                        "start_time": "10:00:00",
+                        "end_time": "11:00:00",
+                        "available_capacity": 8,
+                        "total_capacity": 10
+                    }
+                ]
+            }
+        }
