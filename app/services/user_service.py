@@ -1,9 +1,12 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
+from datetime import date, time, timedelta
 
 from app.models.user import User
 from app.schemas.user import UserCreate, UserUpdate, UserResponse
+from app.schemas.reservation import PaginatedReservationResponse
+from app.services.reservation_service import ReservationService
 from app.core.security import (get_password_hash, verify_password,
                                create_password_reset_token, verify_password_reset_token)
 # from app.services.log_services import log_operation
@@ -106,12 +109,14 @@ class UserService:
             raise UserNotFoundError(f"User with email {email} not found")
         return user
 
-    def create_password_reset_token(self, user_id: int) -> str:
+    @staticmethod
+    def create_password_reset_token(user_id: int) -> str:
         token = create_password_reset_token(user_id)
         reset_link = f"{settings.FRONTEND_BASE_URL}/reset-password?token={token}"
         return reset_link
 
-    async def send_password_reset_email(self, user: User, reset_link: str) -> bool:
+    @staticmethod
+    async def send_password_reset_email(user: User, reset_link: str) -> bool:
         subject = "Password Reset Request"
         body = get_notification_template("reset_password", {
             "username": user.username,
@@ -129,8 +134,8 @@ class UserService:
     async def request_password_reset(self, email: str) -> bool:
         try:
             user = self.get_user_by_email(email)
-            reset_link = self.create_password_reset_token(user.id)
-            success = await self.send_password_reset_email(user, reset_link)
+            reset_link = UserService.create_password_reset_token(user.id)
+            success = await UserService.send_password_reset_email(user, reset_link)
             if success:
                 logger.info(f"Password reset requested for user: {user.username}")
             return success
@@ -159,3 +164,37 @@ class UserService:
         # For example, check the number of actions performed by the user in the last hour
         # If it exceeds a certain threshold, raise RateLimitExceededError
         pass
+
+    def get_user_reservation_history(
+            self,
+            user_id: int,
+            start_date: Optional[date] = None,
+            end_date: Optional[date] = None,
+            page: int = 1,
+            page_size: int = 20
+    ) -> PaginatedReservationResponse:
+        """
+        获取用户的预约历史。
+
+        这个方法是对 ReservationService.get_user_reservation_history 的包装。
+        它允许在 UserService 中访问用户的预约历史，同时保持了业务逻辑的分离。
+
+            参数:
+            - user_id: 用户ID
+            - start_date: 开始日期（可选）
+            - end_date: 结束日期（可选）
+            - page: 页码
+            - page_size: 每页数量
+
+        返回:
+        - PaginatedReservationResponse: 包含分页的预约历史记录
+        """
+        # 首先检查用户是否存在
+        user = self.get_user(user_id)
+        if not user:
+            raise UserNotFoundError(f"User with id {user_id} not found")
+
+        reservation_service = ReservationService(self.db)
+        return reservation_service.get_user_reservation_history(
+            user_id, start_date, end_date, page, page_size
+        )

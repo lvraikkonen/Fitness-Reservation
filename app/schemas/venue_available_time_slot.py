@@ -1,7 +1,6 @@
 from pydantic import BaseModel, field_validator
 from typing import Optional, List
 from datetime import date, time, datetime
-from app.services.venue_service import VenueService
 
 
 class VenueAvailableTimeSlotBase(BaseModel):
@@ -10,16 +9,6 @@ class VenueAvailableTimeSlotBase(BaseModel):
     end_time: time
     capacity: int
     venue_id: int
-
-    @field_validator('capacity')
-    def validate_capacity(cls, v, info):
-        venue_id = info.data.get('venue_id')
-        if venue_id:
-            venue_service = VenueService()
-            venue = venue_service.get_venue(venue_id)
-            if venue and v > venue.capacity:
-                raise ValueError(f'Capacity cannot exceed venue capacity of {venue.capacity}')
-        return v
 
     @field_validator('end_time')
     def validate_end_time(cls, v, info):
@@ -94,7 +83,7 @@ class VenueAvailabilityRead(BaseModel):
     time_slots: List[TimeSlotAvailability]
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "date": "2024-07-01",
                 "venue_id": 1,

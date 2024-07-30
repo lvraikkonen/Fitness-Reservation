@@ -28,6 +28,7 @@ from app.services.venue_available_time_slot_service import VenueAvailableTimeSlo
 
 from app.core.exceptions import ReservationException, ReservationNotFoundError, DatabaseError
 from app.core.config import get_logger
+from contextlib import contextmanager
 
 logger = get_logger(__name__)
 
@@ -45,6 +46,16 @@ class ReservationService:
         self.notification_service = NotificationService(db=self.db)
         self.venue_available_time_slot_service = VenueAvailableTimeSlotService(db=self.db)
         self.waiting_list_service = WaitingListService(db=self.db)
+
+    # add context manager
+    @contextmanager
+    def transaction(self):
+        try:
+            yield
+            self.db.commit()
+        except Exception as e:
+            self.db.rollback()
+            raise
 
     def get_reservation(self, reservation_id: int) -> Optional[ReservationRead]:
         reservation = (
@@ -342,8 +353,8 @@ class ReservationService:
             VenueAvailableTimeSlot.capacity <= 0
         ).all()
 
-    def _get_conflicting_leader_reserved_time(self, reservation_data: ReservationCreate) -> Optional[
-        LeaderReservedTime]:
+    def _get_conflicting_leader_reserved_time(
+            self, reservation_data: ReservationCreate) -> Optional[LeaderReservedTime]:
         return self.db.query(LeaderReservedTime).filter(
             LeaderReservedTime.venue_id == reservation_data.venue_id,
             LeaderReservedTime.day_of_week == reservation_data.date.weekday(),
@@ -359,31 +370,44 @@ class ReservationService:
         pass
 
     # 创建预约
-    def create_reservation(self, reservation_data: ReservationCreate) -> Union[List[ReservationRead], List[WaitingListRead]]:
+    def create_reservation(
+            self, reservation_data: ReservationCreate
+    ) -> Union[List[ReservationRead], List[WaitingListRead]]:
+        logger.info(f"Attempting to create reservation: {reservation_data}")
         try:
-            result = self._create_reservation_logic(reservation_data)
-            # 显式提交事务
-            self.db.commit()
+            with self.transaction():
+                results = self._create_reservation_logic(reservation_data)
+                logger.debug(f"Reservation creation logic completed. Results: {results}")
 
-            # 验证数据是否被正确保存
-            if isinstance(result, ReservationRead):
-                verification = self.db.query(Reservation).filter(Reservation.id == result.id).first()
-                if not verification:
-                    raise DatabaseError("Reservation was not found in the database after creation")
+                # 验证数据是否被正确保存
+                if isinstance(results[0], ReservationRead):
+                    for result in results:
+                        verification = self.db.query(Reservation).filter(Reservation.id == result.id).first()
+                        if not verification:
+                            raise DatabaseError(
+                                f"Reservation with id {result.id} was not found in the database after creation")
+                        logger.debug(f"Reservation verified in database: {verification}")
 
-            # 发送通知（如果需要）
-            if isinstance(result, ReservationRead):
-                self._notify_reservation_created(result)
-            elif isinstance(result, WaitingListRead):
-                self._notify_added_to_waiting_list(result)
+            # 发送通知
+            if results:
+                if isinstance(results[0], ReservationRead):
+                    for result in results:
+                        ReservationService._notify_reservation_created(result)
+                        logger.info(f"Notification sent for created reservation: {result.id}")
+                elif isinstance(results[0], WaitingListRead):
+                    for result in results:
+                        ReservationService._notify_added_to_waiting_list(result)
+                        logger.info(f"Notification sent for waiting list addition: {result.id}")
+                else:
+                    logger.warning(f"Unexpected result type: {type(results[0])}")
+            else:
+                logger.warning("No results returned from _create_reservation_logic")
 
-            return result
+            return results
         except SQLAlchemyError as e:
-            self.db.rollback()
             logger.error(f"Database error occurred while creating reservation: {str(e)}")
             raise DatabaseError(f"Database error occurred while creating reservation: {str(e)}")
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Unexpected error during reservation creation: {str(e)}")
             raise
 
@@ -409,55 +433,58 @@ class ReservationService:
             if not reservation_rules:
                 raise ReservationException("Reservation rules not found for this user role and venue")
 
-            # 3. 验证预约时间是否符合规则
-            self._validate_reservation_time(reservation_data, reservation_rules)
-
-            # 4. 检查用户是否超过预约次数限制
+            # 3. 检查用户是否超过预约次数限制
             self._check_reservation_limit(user, venue, reservation_rules)
 
-            # 5. 获取或创建可用时间段
-            available_slots = self._get_or_create_available_slots(reservation_data, venue.id)
+            # 4. 获取并验证可用时间段
+            available_slot = self._get_containing_available_slot(reservation_data, venue.id)
+            if available_slot is None:
+                # 处理没有找到合适时间段的情况
+                raise ReservationException("No available time slot for the requested reservation")
 
-            # 6. 创建预约或加入等待列表
             reservations = []
             waiting_list_items = []
-            for slot in available_slots:
-                if slot.capacity <= 0:
-                    # 如果没有可用容量，加入等待列表
-                    waiting_list_items.extend(self.join_waiting_list(venue.id, reservation_data, user.id))
-                else:
-                    new_reservation = Reservation(
-                        user_id=user.id,
-                        venue_id=venue.id,
-                        venue_available_time_slot_id=slot.id,
-                        status=ReservationStatus.PENDING,
-                        is_recurring=reservation_data.is_recurring
-                    )
-                    self.db.add(new_reservation)
-                    reservations.append(new_reservation)
-                    slot.capacity -= 1
 
-            # 7. 如果是周期性预约，创建RecurringReservation记录
-            if reservation_data.is_recurring and reservations:
-                recurring_reservation = self._create_recurring_reservation(reservation_data, user.id, venue.id)
-                for reservation in reservations:
-                    reservation.recurring_reservation_id = recurring_reservation.id
+            # 5. 检查容量并创建预约或加入等待列表
+            if available_slot.capacity <= 0:
+                # 如果没有可用容量，加入等待列表
+                waiting_list_item = self.join_waiting_list(
+                    venue.id,
+                    reservation_data,
+                    user.id
+                )[0]  # 获取列表中的第一个（也是唯一的）项目
+                waiting_list_items.append(waiting_list_item)
+            else:
+                # 创建预约
+                new_reservation = Reservation(
+                    user_id=user.id,
+                    venue_id=venue.id,
+                    venue_available_time_slot_id=available_slot.id,
+                    status=ReservationStatus.PENDING,
+                    date=reservation_data.date,  # 用户实际预约日期
+                    actual_start_time=reservation_data.start_time,
+                    actual_end_time=reservation_data.end_time,  # 用户实际预约时间段
+                    is_recurring=reservation_data.is_recurring,
+
+                )
+                self.db.add(new_reservation)
+                reservations.append(new_reservation)
+
+                # 6. 处理周期性预约
+                if reservation_data.is_recurring:
+                    recurring_reservation = self._create_recurring_reservation(reservation_data, user.id, venue.id)
+                    new_reservation.recurring_reservation_id = recurring_reservation.id
+
+                # 更新时间段容量
+                available_slot.capacity -= 1
 
             self.db.commit()
 
-            # 8. 转换为ReservationRead对象并发送通知
-            reservation_reads = []
-            for reservation in reservations:
-                reservation_read = ReservationRead.from_orm(reservation)
-                reservation_reads.append(reservation_read)
-                self._notify_reservation_created(reservation_read)
-
-            waiting_list_reads = [WaitingListRead.from_orm(item) for item in waiting_list_items]
-
-            if reservation_reads:
-                return reservation_reads
+            # 7. 转换为ReservationRead对象并返回相应列表
+            if reservations:
+                return [ReservationService._create_reservation_read(reservation) for reservation in reservations]
             else:
-                return waiting_list_reads
+                return [WaitingListRead.from_orm(item) for item in waiting_list_items]
 
         except SQLAlchemyError as e:
             self.db.rollback()
@@ -468,12 +495,25 @@ class ReservationService:
             logging.error(f"Unexpected error during reservation creation: {str(e)}")
             raise ReservationException(str(e))
 
-    def _validate_reservation_time(self, reservation_data: ReservationCreate, rules: ReservationRules):
-        start_datetime = datetime.combine(reservation_data.date, reservation_data.start_time)
-        end_datetime = datetime.combine(reservation_data.date, reservation_data.end_time)
-        duration = end_datetime - start_datetime
-        if duration < rules.min_duration or duration > rules.max_duration:
-            raise ReservationException("Reservation duration does not meet the rules")
+    @staticmethod
+    def _create_reservation_read(reservation: Reservation) -> ReservationRead:
+        venue_slot = reservation.venue_available_time_slot
+        venue = venue_slot.venue
+        sport_venue = venue.sport_venue
+
+        return ReservationRead(
+            id=reservation.id,
+            user_id=reservation.user_id,
+            venue_available_time_slot_id=reservation.venue_available_time_slot_id,
+            status=reservation.status,
+            date=reservation.date,
+            start_time=reservation.actual_start_time,  # 用户实际预约的时间段
+            end_time=reservation.actual_end_time,  # 用户实际预约的时间段
+            sport_venue_name=sport_venue.name,
+            venue_name=venue.name,
+            is_recurring=reservation.is_recurring,
+            recurring_reservation_id=reservation.recurring_reservation_id
+        )
 
     def _check_reservation_limit(self, user: User, venue: Venue, rules: ReservationRules):
         today = datetime.now().date()
@@ -505,42 +545,43 @@ class ReservationService:
         if monthly_count >= rules.max_monthly_reservations:
             raise ReservationException("Monthly reservation limit exceeded")
 
-    def _get_or_create_available_slots(
+    # 查找包含所请求时间的可用时间段
+    def _get_containing_available_slot(
             self,
             reservation_data: ReservationCreate,
             venue_id: int
-    ) -> List[VenueAvailableTimeSlot]:
-        slots = []
-        current_time = datetime.combine(reservation_data.date, reservation_data.start_time)
-        end_time = datetime.combine(reservation_data.date, reservation_data.end_time)
-        venue = self.db.query(Venue).filter(Venue.id == venue_id).first()
-        if not venue:
-            raise ReservationException("Venue not found")
+    ) -> Optional[VenueAvailableTimeSlot]:
+        """
+        获取包含请求预约时间的可用时间段。
 
-        while current_time < end_time:
-            next_time = min(current_time + timedelta(minutes=30), end_time)
+        :param reservation_data: 预约请求数据
+        :param venue_id: 场馆ID
+        :return: 包含请求时间的可用时间段，如果没有找到则返回None
+        """
+        try:
             slot = self.db.query(VenueAvailableTimeSlot).filter(
-                VenueAvailableTimeSlot.venue_id == venue_id,
-                VenueAvailableTimeSlot.date == reservation_data.date,
-                VenueAvailableTimeSlot.start_time == current_time.time(),
-                VenueAvailableTimeSlot.end_time == next_time.time()
+                and_(
+                    VenueAvailableTimeSlot.venue_id == venue_id,
+                    VenueAvailableTimeSlot.date == reservation_data.date,
+                    VenueAvailableTimeSlot.start_time <= reservation_data.start_time,
+                    VenueAvailableTimeSlot.end_time >= reservation_data.end_time,
+                    VenueAvailableTimeSlot.capacity > 0
+                )
             ).first()
 
-            if not slot:
-                slot = VenueAvailableTimeSlot(
-                    venue_id=venue_id,
-                    date=reservation_data.date,
-                    start_time=current_time,
-                    end_time=next_time,
-                    capacity=venue.default_capacity
-                )
-                self.db.add(slot)
-                self.db.flush()
+            if slot:
+                logger.info(f"Found available time slot: id={slot.id}, date={slot.date}, "
+                            f"start_time={slot.start_time}, end_time={slot.end_time}, with capacity={slot.capacity}")
+            else:
+                logger.warning(f"No available time slot found for reservation: venue_id={venue_id}, "
+                               f"date={reservation_data.date}, start_time={reservation_data.start_time}, "
+                               f"end_time={reservation_data.end_time}")
 
-            slots.append(slot)
-            current_time = next_time
+            return slot
 
-        return slots
+        except Exception as e:
+            logger.error(f"Error occurred while getting available time slot: {str(e)}")
+            return None
 
     def _create_recurring_reservation(self, reservation_data: ReservationCreate, user_id: int,
                                       venue_id: int) -> RecurringReservation:
@@ -554,7 +595,8 @@ class ReservationService:
         self.db.add(recurring_reservation)
         return recurring_reservation
 
-    def _notify_reservation_created(self, reservation: ReservationRead):
+    @staticmethod
+    def _notify_reservation_created(reservation: ReservationRead):
         # 实现发送预约创建通知的逻辑
         logger.info(f"Reservation creation notification sent for reservation ID: {reservation.id}")
         # try:
@@ -568,7 +610,8 @@ class ReservationService:
         # except Exception as e:
         #     logging.error(f"Failed to send reservation creation notification: {str(e)}")
 
-    def _notify_added_to_waiting_list(self, waiting_list_item: WaitingListRead):
+    @staticmethod
+    def _notify_added_to_waiting_list(waiting_list_item: WaitingListRead):
         # 实现发送加入等待列表通知的逻辑
         logger.info(f"Added to waiting list notification sent for user ID: {waiting_list_item.user_id}")
         # try:
@@ -715,37 +758,41 @@ class ReservationService:
     # 加入预约等候列表
     def join_waiting_list(self, venue_id: int, reservation_data: ReservationCreate, user_id: int) -> List[WaitingList]:
         try:
-            # 获取或创建可用时间段
-            available_slots = self._get_or_create_available_slots(reservation_data, venue_id)
+            # 获取包含用户请求时间的可用时间段
+            available_slot = self._get_containing_available_slot(reservation_data, venue_id)
+
+            if not available_slot:
+                raise ReservationException("No available time slot found for the requested time")
 
             waiting_list_items = []
 
-            for slot in available_slots:
-                # 检查用户是否已经在该时间段的等待列表中
-                existing_waiting_list_item = self.db.query(WaitingList).filter(
-                    WaitingList.venue_available_time_slot_id == slot.id,
-                    WaitingList.user_id == user_id
-                ).first()
+            # 检查用户是否已经在该时间段的等待列表中
+            existing_waiting_list_item = self.db.query(WaitingList).filter(
+                WaitingList.venue_available_time_slot_id == available_slot.id,
+                WaitingList.user_id == user_id
+            ).first()
 
-                if existing_waiting_list_item:
-                    # 如果用户已经在等待列表中,将现有的等待列表对象添加到列表中
-                    waiting_list_items.append(existing_waiting_list_item)
-                else:
-                    # 如果用户不在等待列表中,将用户加入等待列表
-                    new_waiting_list_item = WaitingList(
-                        venue_available_time_slot_id=slot.id,
-                        user_id=user_id
-                    )
-                    self.db.add(new_waiting_list_item)
-                    waiting_list_items.append(new_waiting_list_item)
+            if existing_waiting_list_item:
+                # 如果用户已经在等待列表中，更新实际请求的时间
+                existing_waiting_list_item.actual_start_time = reservation_data.start_time
+                existing_waiting_list_item.actual_end_time = reservation_data.end_time
+                existing_waiting_list_item.date = reservation_data.date
+                waiting_list_items.append(existing_waiting_list_item)
+            else:
+                # 如果用户不在等待列表中，创建新的等待列表项
+                new_waiting_list_item = WaitingList(
+                    venue_available_time_slot_id=available_slot.id,
+                    user_id=user_id,
+                    actual_start_time=reservation_data.start_time,  # 用户实际请求时间段
+                    actual_end_time=reservation_data.end_time,  # 用户实际请求时间段
+                    date=reservation_data.date  # 用户实际请求日期
+                )
+                self.db.add(new_waiting_list_item)
+                waiting_list_items.append(new_waiting_list_item)
 
             self.db.commit()
             for item in waiting_list_items:
                 self.db.refresh(item)
-
-            # 发送加入等待列表的通知
-            for item in waiting_list_items:
-                self._notify_added_to_waiting_list(item)
 
             return waiting_list_items
         except Exception as e:
@@ -1037,11 +1084,44 @@ class ReservationService:
     def get_user_reservation_history(self, user_id: int, start_date: Optional[date], end_date: Optional[date],
                                      page: int, page_size: int) -> PaginatedReservationResponse:
         # 实现获取用户预约历史的逻辑
-        pass
+        query = (
+            self.db.query(Reservation)
+            .join(VenueAvailableTimeSlot)
+            .join(Venue)
+            .filter(Reservation.user_id == user_id)
+            .order_by(VenueAvailableTimeSlot.date.desc(), VenueAvailableTimeSlot.start_time.desc())
+        )
 
-    def check_venue_availability(self, venue_id: int, start_date: date, end_date: date) -> List[VenueAvailabilityRead]:
-        # 实现检查场地可用性的逻辑
-        pass
+        if start_date:
+            query = query.filter(VenueAvailableTimeSlot.date >= start_date)
+        if end_date:
+            query = query.filter(VenueAvailableTimeSlot.date <= end_date)
+
+        total_count = query.count()
+        reservations = query.offset((page - 1) * page_size).limit(page_size).all()
+
+        reservation_reads = [
+            ReservationRead(
+                id=res.id,
+                user_id=res.user_id,
+                venue_available_time_slot_id=res.venue_available_time_slot_id,
+                status=res.status,
+                date=res.venue_available_time_slot.date,
+                start_time=res.venue_available_time_slot.start_time,
+                end_time=res.venue_available_time_slot.end_time,
+                sport_venue_name=res.venue_available_time_slot.venue.sport_venue.name,
+                venue_name=res.venue_available_time_slot.venue.name,
+                is_recurring=res.is_recurring,
+                recurring_reservation_id=res.recurring_reservation_id
+            ) for res in reservations
+        ]
+
+        return PaginatedReservationResponse(
+            reservations=reservation_reads,
+            total_count=total_count,
+            page=page,
+            page_size=page_size
+        )
 
     def bulk_create_reservations(self, reservations: List[ReservationCreate]) -> List[ReservationRead]:
         # 实现批量创建预约的逻辑

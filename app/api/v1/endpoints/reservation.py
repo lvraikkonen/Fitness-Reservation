@@ -6,6 +6,7 @@ from app.deps import get_db, get_current_user, get_current_admin
 from app.models.user import User
 from app.models.reservation import ReservationStatus
 from app.schemas.venue_available_time_slot import VenueAvailabilityRead
+from app.services.venue_service import VenueService
 from app.services.reservation_service import ReservationService
 from app.schemas.reservation import ReservationCreate, ReservationUpdate, ReservationRead, PaginatedReservationResponse, \
     RecurringReservationCreate, RecurringReservationRead, RecurringReservationUpdate
@@ -21,7 +22,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.post("/reservations", response_model=Union[ReservationRead, WaitingListRead], status_code=status.HTTP_201_CREATED)
+@router.post("/reservations", response_model=Union[List[ReservationRead], List[WaitingListRead]],
+             status_code=status.HTTP_201_CREATED)
 def create_reservation(
         reservation: ReservationCreate,
         current_user: User = Depends(get_current_user),
@@ -317,8 +319,16 @@ def check_venue_availability(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    reservation_service = ReservationService(db)
-    return reservation_service.check_venue_availability(venue_id, start_date, end_date)
+    venue_service = VenueService(db)
+    try:
+        availability = venue_service.check_venue_availability(venue_id, start_date, end_date)
+        return availability
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        # 记录错误
+        logger.error(f"Error checking venue availability: {str(e)}")
+        raise HTTPException(status_code=500, detail="An error occurred while checking venue availability")
 
 
 # 批量预约操作（适用于管理员）

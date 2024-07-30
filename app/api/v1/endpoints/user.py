@@ -1,19 +1,23 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
+from datetime import date
 
 from app.core.security import create_access_token
 from app.deps import get_db
 from app.models.user import User
 from app.schemas.user import UserCreate, UserUpdate, UserResponse
 from app.schemas.token import Token
+from app.schemas.reservation import PaginatedReservationResponse
 from app.schemas.user import UserResetPasswordRequest, UserResetPassword
 from app.services.user_service import UserService
 from app.deps import get_current_user, get_current_admin
 from app.core.config import get_logger
+from app.core.exceptions import AuthorizationError
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 
 @router.post("/register", response_model=UserResponse, status_code=201)
@@ -95,3 +99,28 @@ def reset_password(
     if not success:
         raise HTTPException(status_code=400, detail="Invalid or expired token")
     return {"message": "Password reset successfully"}
+
+
+@router.get("/users/{user_id}/reservation-history", response_model=PaginatedReservationResponse)
+def get_user_reservation_history(
+        user_id: int,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+    user_service = UserService(db)
+
+    # 检查权限：只允许用户查看自己的历史记录，或者管理员可以查看所有用户的历史记录
+    if current_user.id != user_id and not current_user.is_admin:
+        raise AuthorizationError("Not authorized to view this user's history")
+
+    try:
+        return user_service.get_user_reservation_history(user_id, start_date, end_date, page, page_size)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error retrieving user reservation history: {str(e)}")
+        raise HTTPException(status_code=500, detail="An error occurred while retrieving reservation history")

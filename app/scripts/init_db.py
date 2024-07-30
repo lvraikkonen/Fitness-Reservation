@@ -45,14 +45,16 @@ def create_sample_data():
         # 创建预约规则
         create_sample_reservation_rules(db)
 
-        # 创建可用时间段
+        # 创建预设可用时间段
         create_sample_available_time_slots(db)
 
-        create_sample_reservations(db)
+        # # 创建sample预约
+        # create_sample_reservations(db)
+
         create_sample_feedbacks(db)
-        create_sample_leader_reserved_times(db)
-        create_sample_notifications(db)
-        create_sample_waiting_lists(db)
+        # create_sample_leader_reserved_times(db)
+        # create_sample_notifications(db)
+        # create_sample_waiting_lists(db)
 
         logger.info("Sample data created successfully.")
 
@@ -137,21 +139,38 @@ def create_sample_reservation_rules(db: Session):
         db.add_all([employee_rule, vip_rule])
 
     db.commit()
-    print(f"Created reservation rules for {len(venues)} venues.")
 
 
 def create_sample_available_time_slots(db: Session):
     today = datetime.now().date()
     time_slots = []
+
+    # 定义时间段
+    time_ranges = [
+        (time(8, 0), time(10, 0)),
+        (time(10, 0), time(12, 0)),
+        (time(14, 0), time(16, 0)),
+        (time(16, 0), time(18, 0)),
+        (time(19, 0), time(21, 0))
+    ]
+
+    # 定义场馆容量
+    venue_capacities = {1: 20, 2: 15, 3: 30}
+
     for i in range(7):  # 创建未来7天的时间段
         date_key = today + timedelta(days=i)
-        time_slots.extend([
-            VenueAvailableTimeSlot(venue_id=1, date=date_key, start_time=time(9, 0), end_time=time(11, 0), capacity=20),
-            VenueAvailableTimeSlot(venue_id=1, date=date_key, start_time=time(13, 0), end_time=time(15, 0), capacity=20),
-            VenueAvailableTimeSlot(venue_id=2, date=date_key, start_time=time(10, 0), end_time=time(11, 0), capacity=15),
-            VenueAvailableTimeSlot(venue_id=2, date=date_key, start_time=time(14, 0), end_time=time(15, 0), capacity=15),
-            VenueAvailableTimeSlot(venue_id=3, date=date_key, start_time=time(15, 0), end_time=time(17, 0), capacity=30),
-        ])
+        for venue_id, capacity in venue_capacities.items():
+            for start_time, end_time in time_ranges:
+                time_slots.append(
+                    VenueAvailableTimeSlot(
+                        venue_id=venue_id,
+                        date=date_key,
+                        start_time=start_time,
+                        end_time=end_time,
+                        capacity=capacity
+                    )
+                )
+
     db.add_all(time_slots)
     db.commit()
 
@@ -161,15 +180,27 @@ def create_sample_reservations(db: Session):
     time_slots = db.query(VenueAvailableTimeSlot).all()
 
     reservations = []
-    for _ in range(10):  # 创建10个预约
+    for _ in range(5):  # 创建5个预约
         user = random.choice(users)
         time_slot = random.choice(time_slots)
         status = random.choice(list(ReservationStatus))
+
+        # 将 time 转换为 datetime，进行计算，然后再转回 time
+        base_datetime = datetime.combine(time_slot.date, time_slot.start_time)
+        actual_start_datetime = base_datetime + timedelta(minutes=random.randint(0, 30))
+        actual_start = actual_start_datetime.time()
+
+        base_datetime = datetime.combine(time_slot.date, time_slot.end_time)
+        actual_end_datetime = base_datetime - timedelta(minutes=random.randint(0, 30))
+        actual_end = actual_end_datetime.time()
 
         reservation = Reservation(
             user_id=user.id,
             venue_id=time_slot.venue_id,
             venue_available_time_slot_id=time_slot.id,
+            date=time_slot.date,
+            actual_start_time=actual_start,
+            actual_end_time=actual_end,
             status=status,
             is_recurring=False
         )

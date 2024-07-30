@@ -118,7 +118,7 @@ class RecurringReservationCreate(BaseModel):
     day_of_month: Optional[int] = Field(None, ge=1, le=31, description="Required for monthly pattern")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "user_id": 1,
                 "venue_id": 1,
@@ -146,7 +146,7 @@ class RecurringReservationRead(BaseModel):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class RecurringReservationUpdate(BaseModel):
@@ -158,7 +158,7 @@ class RecurringReservationUpdate(BaseModel):
     day_of_month: Optional[int]
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "end_date": "2025-06-30",
                 "start_time": "10:00:00",
