@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc, case, and_
+from sqlalchemy import func, desc, case, and_, or_
 from datetime import datetime, timedelta
-from app.models.reservation import Reservation
+from app.models.reservation import Reservation, ReservationStatus
 from app.models.venue_available_time_slot import VenueAvailableTimeSlot
 from app.models.user import User
 from app.models.venue import Venue
@@ -76,7 +76,11 @@ class StatsService:
             Venue.name,
             func.count(Reservation.id).label("reservation_count")
         ).join(VenueAvailableTimeSlot, Venue.id == VenueAvailableTimeSlot.venue_id)
-         .join(Reservation, VenueAvailableTimeSlot.id == Reservation.venue_available_time_slot_id))
+         .join(Reservation, VenueAvailableTimeSlot.id == Reservation.venue_available_time_slot_id)
+         .filter(or_(
+            Reservation.status == ReservationStatus.CONFIRMED,
+            Reservation.status == ReservationStatus.PENDING
+        )))
 
         if start_date:
             query = query.filter(Reservation.created_at >= start_date)
@@ -139,9 +143,9 @@ class StatsService:
             Facility.name,
             func.count(Reservation.id).label("usage_count")
         ).join(Venue, Facility.venue_id == Venue.id)
-         .join(VenueAvailableTimeSlot, Venue.id == VenueAvailableTimeSlot.venue_id)
-         .join(Reservation, VenueAvailableTimeSlot.id == Reservation.venue_available_time_slot_id)
-         .group_by(Facility.id, Facility.name)).all()
+                          .join(VenueAvailableTimeSlot, Venue.id == VenueAvailableTimeSlot.venue_id)
+                          .join(Reservation, VenueAvailableTimeSlot.id == Reservation.venue_available_time_slot_id)
+                          .group_by(Facility.id, Facility.name)).all()
 
         facility_usage = [
             FacilityUsageCount(facility_id=fu[0], facility_name=fu[1], usage_count=fu[2])

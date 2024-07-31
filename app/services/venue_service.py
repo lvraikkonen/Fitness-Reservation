@@ -14,9 +14,11 @@ from app.schemas.venue import VenueCreate, VenueUpdate, VenueStats
 from app.schemas.venue_available_time_slot import VenueAvailabilityRead, TimeSlotAvailability
 from app.core.config import get_logger
 from app.core.exceptions import (VenueNotFoundError, SportVenueNotFoundError,
-                                 VenueCreateError, VenueUpdateError, VenueDeleteError)
+                                 VenueCreateError, VenueUpdateError, VenueDeleteError, TimeSlotException)
 
 logger = get_logger(__name__)
+
+MAX_DATE_RANGE = 30  # 最大日期范围（天）
 
 
 class VenueService:
@@ -106,45 +108,43 @@ class VenueService:
         if start_date > end_date:
             raise ValueError("Start date must be before or equal to end date")
 
+        if (end_date - start_date).days > MAX_DATE_RANGE:
+            raise TimeSlotException(f"Date range cannot exceed {MAX_DATE_RANGE} days")
+
         # 获取场馆信息
         venue = self.db.query(Venue).filter(Venue.id == venue_id).first()
         if not venue:
             raise ValueError(f"Venue with id {venue_id} not found")
 
-        availability_list = []
+        # 批量获取时间段
+        time_slots = self.db.query(VenueAvailableTimeSlot).filter(
+            VenueAvailableTimeSlot.venue_id == venue_id,
+            VenueAvailableTimeSlot.date.between(start_date, end_date)
+        ).order_by(VenueAvailableTimeSlot.date, VenueAvailableTimeSlot.start_time).all()
 
+        # 创建日期到时间段的映射
+        date_to_slots = {}
+        for slot in time_slots:
+            if slot.date not in date_to_slots:
+                date_to_slots[slot.date] = []
+            date_to_slots[slot.date].append(slot)
+
+        availability_list = []
         current_date = start_date
         while current_date <= end_date:
-            # 获取当天的所有可用时间段
-            time_slots = self.db.query(VenueAvailableTimeSlot).filter(
-                VenueAvailableTimeSlot.venue_id == venue_id,
-                VenueAvailableTimeSlot.date == current_date
-            ).order_by(VenueAvailableTimeSlot.start_time).all()
+            slots = date_to_slots.get(current_date, [])
+            if not slots:
+                slots = VenueService._generate_default_time_slots(venue, current_date)
 
-            # 如果没有预定义的时间段,使用默认的营业时间
-            if not time_slots:
-                time_slots = VenueService._generate_default_time_slots(venue, current_date)
-
-            # 获取当天的所有有效预约
-            reservations = self.db.query(Reservation).filter(
-                Reservation.venue_id == venue_id,
-                Reservation.venue_available_time_slot_id.in_([slot.id for slot in time_slots]),
-                Reservation.status.in_([ReservationStatus.PENDING, ReservationStatus.CONFIRMED])
-            ).all()
-
-            # 计算每个时间段的可用容量
-            time_slot_availability = []
-            for slot in time_slots:
-                reserved_count = sum(1 for r in reservations if r.venue_available_time_slot_id == slot.id)
-                available_capacity = max(0, slot.capacity - reserved_count)
-                time_slot_availability.append(TimeSlotAvailability(
+            time_slot_availability = [
+                TimeSlotAvailability(
                     start_time=slot.start_time,
                     end_time=slot.end_time,
-                    available_capacity=available_capacity,
-                    total_capacity=slot.capacity
-                ))
+                    available_capacity=slot.capacity,
+                    total_capacity=venue.default_capacity  # 使用场馆的默认容量
+                ) for slot in slots
+            ]
 
-            # 创建当天的可用性记录
             availability_list.append(VenueAvailabilityRead(
                 date=current_date,
                 venue_id=venue_id,
@@ -157,21 +157,27 @@ class VenueService:
         return availability_list
 
     @staticmethod
-    def _generate_default_time_slots(venue: Venue, slot_date: date) -> List[VenueAvailableTimeSlot]:
-        # 生成默认的时间段,例如每小时一个时间段,从上午9点到晚上10点
-        default_slots = []
-        start_hour = 9  # 假设默认营业时间从9点开始
-        end_hour = 22   # 假设默认营业时间到22点结束
+    def _generate_default_time_slots(venue: Venue, date_key: date) -> List[VenueAvailableTimeSlot]:
+        # 定义默认时间段
+        time_ranges = [
+            (time(8, 0), time(10, 0)),
+            (time(10, 0), time(12, 0)),
+            (time(14, 0), time(16, 0)),
+            (time(16, 0), time(18, 0)),
+            (time(19, 0), time(21, 0))
+        ]
 
-        for hour in range(start_hour, end_hour):
-            slot = VenueAvailableTimeSlot(
-                venue_id=venue.id,
-                date=slot_date,
-                start_time=time(hour, 0),
-                end_time=time(hour + 1, 0),
-                capacity=venue.default_capacity
+        default_slots = []
+        for start_time, end_time in time_ranges:
+            default_slots.append(
+                VenueAvailableTimeSlot(
+                    venue_id=venue.id,
+                    date=date_key,
+                    start_time=start_time,
+                    end_time=end_time,
+                    capacity=venue.default_capacity  # 使用场馆的默认可预约容量
+                )
             )
-            default_slots.append(slot)
 
         return default_slots
 

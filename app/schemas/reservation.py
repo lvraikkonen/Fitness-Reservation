@@ -167,3 +167,10 @@ class RecurringReservationUpdate(BaseModel):
                 "days_of_week": [2, 4, 6]  # Tuesday, Thursday, Saturday
             }
         }
+
+
+class ReservationConfirmationResult(BaseModel):
+    reservation_id: int
+    status: ReservationStatus
+    confirmed_at: datetime
+    message: str

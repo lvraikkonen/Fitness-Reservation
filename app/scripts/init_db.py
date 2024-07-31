@@ -157,7 +157,7 @@ def create_sample_available_time_slots(db: Session):
     # 定义场馆容量
     venue_capacities = {1: 20, 2: 15, 3: 30}
 
-    for i in range(7):  # 创建未来7天的时间段
+    for i in range(1, 7):  # 创建未来7天的时间段, 不包括今天
         date_key = today + timedelta(days=i)
         for venue_id, capacity in venue_capacities.items():
             for start_time, end_time in time_ranges:

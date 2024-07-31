@@ -42,7 +42,8 @@ class WaitingListService:
 
     def get_next_waiting_user(self, venue_available_time_slot_id: int) -> Optional[WaitingList]:
         return self.db.query(WaitingList).filter(
-            WaitingList.venue_available_time_slot_id == venue_available_time_slot_id
+            WaitingList.venue_available_time_slot_id == venue_available_time_slot_id,
+            WaitingList.is_expired == False
         ).order_by(WaitingList.created_at).first()
 
     def remove_from_waiting_list(self, waiting_list_entry: WaitingList) -> None:

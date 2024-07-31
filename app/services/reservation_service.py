@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import List, Union, Dict, Optional, Any, Tuple
 from sqlalchemy.orm import Session, joinedload
@@ -19,7 +20,7 @@ from app.schemas.reservation import (ReservationCreate, ReservationUpdate, Venue
                                      ReservationRead, PaginatedReservationResponse,
                                      ConflictCheckResult, RecurringReservationRead, RecurringReservationUpdate,
                                      RecurringReservationCreate)
-from app.schemas.reservation import VenueCalendarResponse, CalendarTimeSlot
+from app.schemas.reservation import VenueCalendarResponse, CalendarTimeSlot, ReservationConfirmationResult
 from app.schemas.waiting_list import WaitingListReadWithVenueAvailableTimeSlot, WaitingListRead
 from app.schemas.venue_available_time_slot import VenueAvailableTimeSlotRead, VenueAvailabilityRead
 from app.services.notification_service import NotificationService
@@ -29,6 +30,7 @@ from app.services.venue_available_time_slot_service import VenueAvailableTimeSlo
 from app.core.exceptions import ReservationException, ReservationNotFoundError, DatabaseError
 from app.core.config import get_logger
 from contextlib import contextmanager
+from concurrent.futures import ThreadPoolExecutor
 
 logger = get_logger(__name__)
 
@@ -710,6 +712,8 @@ class ReservationService:
         return datetime.now() <= cancellation_deadline
 
     def _handle_waiting_list(self, cancelled_reservation: Reservation) -> None:
+        logger.debug(f"Handling waiting list for cancelled reservation: {cancelled_reservation.id}")
+        logger.debug(f"Venue available time slot id: {cancelled_reservation.venue_available_time_slot_id}")
         waiting_user = self.waiting_list_service.get_next_waiting_user(
             cancelled_reservation.venue_available_time_slot_id
         )
@@ -935,11 +939,20 @@ class ReservationService:
     - 管理员或系统在预约开始前的一定时间(例如48小时)自动确认预约。
     - 用户在预约开始时到达场馆,工作人员手动确认预约。
     """
-    def confirm_reservation(self, reservation_id: int) -> None:
+    def confirm_reservation(self, reservation_id: int) -> ReservationConfirmationResult:
         try:
-            self._confirm_reservation_logic(reservation_id)
+            reservation = self._confirm_reservation_logic(reservation_id)
             self.db.commit()
+
+            confirmation_result = ReservationConfirmationResult(
+                reservation_id=reservation.id,
+                status=reservation.status,
+                confirmed_at=datetime.now(),
+                message=f"Reservation {reservation_id} has been successfully confirmed."
+            )
+
             logger.info(f"Reservation {reservation_id} has been confirmed.")
+            return confirmation_result
         except SQLAlchemyError as e:
             self.db.rollback()
             logger.error(f"Database error occurred while confirming reservation {reservation_id}: {str(e)}")
@@ -949,7 +962,7 @@ class ReservationService:
             logger.error(f"Error occurred while confirming reservation {reservation_id}: {str(e)}")
             raise ReservationException(f"Failed to confirm reservation: {str(e)}")
 
-    def _confirm_reservation_logic(self, reservation_id: int) -> None:
+    def _confirm_reservation_logic(self, reservation_id: int) -> Reservation:
         reservation = self.db.query(Reservation).filter(Reservation.id == reservation_id).with_for_update().first()
         if not reservation:
             raise ReservationException(f"Reservation with id {reservation_id} not found")
@@ -970,11 +983,14 @@ class ReservationService:
             type="RESERVATION_CONFIRMATION"
         )
 
-    def auto_confirm_reservations(self) -> None:
+        return reservation
+
+    def auto_confirm_reservations(self) -> List[Reservation]:
         try:
-            self._auto_confirm_reservations_logic()
+            confirmed_reservations = self._auto_confirm_reservations_logic()
             self.db.commit()
-            logger.info("Auto-confirmation process completed.")
+            logger.info(f"Auto-confirmed {len(confirmed_reservations)} reservations.")
+            return confirmed_reservations
         except SQLAlchemyError as e:
             self.db.rollback()
             logger.error(f"Database error occurred during auto-confirmation: {str(e)}")
@@ -984,7 +1000,7 @@ class ReservationService:
             logger.error(f"Error occurred during auto-confirmation: {str(e)}")
             raise ReservationException(f"Failed to auto-confirm reservations: {str(e)}")
 
-    def _auto_confirm_reservations_logic(self) -> None:
+    def _auto_confirm_reservations_logic(self) -> List[Reservation]:
         current_time = datetime.now()
         auto_confirm_time = current_time + timedelta(hours=AUTO_CONFIRM_HOURS)
 
@@ -997,8 +1013,12 @@ class ReservationService:
             )
         ).with_for_update().all()
 
+        confirmed_reservations: List[Reservation] = []
+
         for reservation in pending_reservations:
             reservation.status = ReservationStatus.CONFIRMED
+            confirmed_reservations.append(reservation)
+
             self.notification_service.notify_user(
                 user_id=reservation.user_id,
                 title="Reservation Auto-Confirmed",
@@ -1006,7 +1026,7 @@ class ReservationService:
                 type="AUTO_CONFIRMATION"
             )
 
-        logger.info(f"Auto-confirmed {len(pending_reservations)} reservations.")
+        return confirmed_reservations
 
     def handle_venue_closure_or_time_slot_adjustment(self, venue_id: int, start_date: datetime,
                                                      end_date: datetime) -> None:

@@ -9,7 +9,7 @@ from app.schemas.venue_available_time_slot import VenueAvailabilityRead
 from app.services.venue_service import VenueService
 from app.services.reservation_service import ReservationService
 from app.schemas.reservation import ReservationCreate, ReservationUpdate, ReservationRead, PaginatedReservationResponse, \
-    RecurringReservationCreate, RecurringReservationRead, RecurringReservationUpdate
+    RecurringReservationCreate, RecurringReservationRead, RecurringReservationUpdate, ReservationConfirmationResult
 from app.schemas.reservation import VenueCalendarResponse, ConflictCheckResult
 from app.schemas.waiting_list import WaitingListRead
 from app.core.exceptions import ReservationException, ReservationNotFoundError
@@ -152,7 +152,7 @@ def cancel_reservation(
     return {"message": "Reservation cancelled successfully"}
 
 
-@router.post("/reservations/{reservation_id}/confirm")
+@router.post("/reservations/{reservation_id}/confirm", response_model=ReservationConfirmationResult)
 def confirm_reservation(
         reservation_id: int,
         current_user: User = Depends(get_current_admin),
@@ -160,7 +160,7 @@ def confirm_reservation(
 ):
     reservation_service = ReservationService(db)
     try:
-        reservation_service.confirm_reservation(reservation_id)
+        return reservation_service.confirm_reservation(reservation_id)
     except ReservationNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ReservationException as e:

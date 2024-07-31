@@ -8,8 +8,10 @@ from app.schemas.reservation import ReservationRead
 from app.core.exceptions import NotificationNotFoundError, UserNotFoundError
 from app.core.config import get_logger
 from app.utils.templates import get_notification_template
-from app.utils.email import send_email_async
-from app.utils.sms import send_sms_async
+# from app.utils.email import send_email_async
+# from app.utils.sms import send_sms_async
+from app.utils.email import send_email_sync
+from app.utils.sms import send_sms_sync
 
 logger = get_logger(__name__)
 
@@ -70,7 +72,7 @@ class NotificationService:
             logger.error(f"Error deleting notification: {str(e)}")
             raise
 
-    async def notify_user(self, user_id: int, title: str, content: str, type: str = "GENERAL") -> None:
+    def notify_user(self, user_id: int, title: str, content: str, type: str = "GENERAL") -> None:
         user = self.db.query(User).filter(User.id == user_id).first()
         if not user:
             logger.warning(f"User not found: {user_id}")
@@ -87,15 +89,20 @@ class NotificationService:
             self.db.commit()
             logger.info(f"Notification created for user {user_id}")
 
-            # Asynchronously send email and SMS
-            await send_email_async(user.email, title, content)
-            await send_sms_async(user.phone, content)
+            # 记录要发送的邮件内容
+            logger.info(f"Email would be sent to {user.email}: Subject: {title}, Content: {content}")
+            logger.info(f"SMS would be sent to {user.phone}: Content: {content}")
+
+            # # 同步发送邮件和短信
+            # send_email_sync(user.email, title, content)
+            # send_sms_sync(user.phone, content)
+
         except Exception as e:
             self.db.rollback()
             logger.error(f"Error notifying user {user_id}: {str(e)}")
             raise
 
-    async def send_reservation_reminder(self, reservation: ReservationRead) -> None:
+    def send_reservation_reminder(self, reservation: ReservationRead) -> None:
         user = self.db.query(User).filter(User.id == reservation.user_id).first()
         if user:
             content = get_notification_template("reservation_reminder", {
@@ -106,7 +113,7 @@ class NotificationService:
                 "start_time": reservation.start_time,
                 "end_time": reservation.end_time
             })
-            await self.notify_user(
+            self.notify_user(
                 user_id=user.id,
                 title="Reservation Reminder",
                 content=content,
@@ -115,7 +122,7 @@ class NotificationService:
         else:
             logger.warning(f"User not found for reservation reminder: {reservation.user_id}")
 
-    async def send_reservation_cancellation_notice(self, reservation: ReservationRead, reason: str) -> None:
+    def send_reservation_cancellation_notice(self, reservation: ReservationRead, reason: str) -> None:
         user = self.db.query(User).filter(User.id == reservation.user_id).first()
         if user:
             content = get_notification_template("reservation_cancellation", {
@@ -127,7 +134,7 @@ class NotificationService:
                 "end_time": reservation.end_time,
                 "reason": reason
             })
-            await self.notify_user(
+            self.notify_user(
                 user_id=user.id,
                 title="Reservation Cancellation Notice",
                 content=content,
@@ -136,10 +143,10 @@ class NotificationService:
         else:
             logger.warning(f"User not found for reservation cancellation notice: {reservation.user_id}")
 
-    async def send_bulk_notifications(self, user_ids: List[int], title: str, content: str,
+    def send_bulk_notifications(self, user_ids: List[int], title: str, content: str,
                                       type: str = "GENERAL") -> None:
         for user_id in user_ids:
             try:
-                await self.notify_user(user_id, title, content, type)
+                self.notify_user(user_id, title, content, type)
             except Exception as e:
                 logger.error(f"Failed to send notification to user {user_id}: {str(e)}")

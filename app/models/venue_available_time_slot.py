@@ -17,6 +17,7 @@ class VenueAvailableTimeSlot(Base):
 
     venue = relationship("Venue", back_populates="available_time_slots")
     reservations = relationship("Reservation", back_populates="venue_available_time_slot")
+    waiting_lists = relationship("WaitingList", back_populates="venue_available_time_slot")
 
     __table_args__ = (
         UniqueConstraint('venue_id', 'date', 'start_time', 'end_time', name='uq_venue_date_time'),
