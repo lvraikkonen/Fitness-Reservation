@@ -982,6 +982,7 @@ class ReservationService:
             content=f"Your reservation {reservation_id} has been confirmed.",
             type="RESERVATION_CONFIRMATION"
         )
+        logger.info(f"Queued confirmation notification for reservation {reservation_id}")
 
         return reservation
 

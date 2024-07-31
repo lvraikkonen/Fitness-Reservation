@@ -8,10 +8,7 @@ from app.schemas.reservation import ReservationRead
 from app.core.exceptions import NotificationNotFoundError, UserNotFoundError
 from app.core.config import get_logger
 from app.utils.templates import get_notification_template
-# from app.utils.email import send_email_async
-# from app.utils.sms import send_sms_async
-from app.utils.email import send_email_sync
-from app.utils.sms import send_sms_sync
+from celery_tasks.tasks.notification_tasks import send_email_task, send_sms_task
 
 logger = get_logger(__name__)
 
@@ -93,9 +90,9 @@ class NotificationService:
             logger.info(f"Email would be sent to {user.email}: Subject: {title}, Content: {content}")
             logger.info(f"SMS would be sent to {user.phone}: Content: {content}")
 
-            # # 同步发送邮件和短信
-            # send_email_sync(user.email, title, content)
-            # send_sms_sync(user.phone, content)
+            # # 异步发送邮件和短信
+            # send_email_task.delay(user.email, title, content)
+            # send_sms_task.delay(user.phone, content)
 
         except Exception as e:
             self.db.rollback()
