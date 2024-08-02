@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Dict
 from datetime import date
 from app.deps import get_db, get_current_user, get_current_admin
 from app.models.user import User
@@ -12,7 +12,8 @@ from app.schemas.reservation import ReservationCreate, ReservationUpdate, Reserv
     RecurringReservationCreate, RecurringReservationRead, RecurringReservationUpdate, ReservationConfirmationResult
 from app.schemas.reservation import VenueCalendarResponse, ConflictCheckResult
 from app.schemas.waiting_list import WaitingListRead
-from app.core.exceptions import ReservationException, ReservationNotFoundError
+from app.core.exceptions import ReservationException, ReservationNotFoundError, InvalidReservationStatusError, \
+    InvalidCheckInTimeError
 from app.core.exceptions import ReservationConflictError, DatabaseError
 import logging
 
@@ -350,3 +351,60 @@ def bulk_update_reservations(
 ):
     reservation_service = ReservationService(db)
     return reservation_service.bulk_update_reservations(reservations)
+
+
+@router.post("/reservations/{reservation_id}/check-in-token", response_model=Dict[str, str])
+def generate_check_in_token(
+    reservation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    reservation_service = ReservationService(db)
+    try:
+        token_info = reservation_service.generate_check_in_token(reservation_id)
+        return token_info
+    except ReservationNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except (InvalidReservationStatusError, InvalidCheckInTimeError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
+
+
+@router.post("/check-in", response_model=ReservationRead)
+def check_in(
+    token: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    reservation_service = ReservationService(db)
+    try:
+        reservation_id = ReservationService.verify_check_in_token(token)
+        checked_in_reservation = reservation_service.check_in(reservation_id)
+        return ReservationRead.from_orm(checked_in_reservation)
+    except InvalidCheckInTimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ReservationNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except (InvalidReservationStatusError, InvalidCheckInTimeError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
+
+
+@router.post("/reservations/{reservation_id}/check-in", response_model=ReservationRead)
+def direct_check_in(
+    reservation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    reservation_service = ReservationService(db)
+    try:
+        checked_in_reservation = reservation_service.check_in(reservation_id)
+        return ReservationRead.from_orm(checked_in_reservation)
+    except ReservationNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except (InvalidReservationStatusError, InvalidCheckInTimeError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")

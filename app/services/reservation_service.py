@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from typing import List, Union, Dict, Optional, Any, Tuple
 from sqlalchemy.orm import Session, joinedload
@@ -17,7 +16,7 @@ from app.models.leader_reserved_time import LeaderReservedTime
 from app.models.venue_available_time_slot import VenueAvailableTimeSlot
 from app.models.waiting_list import WaitingList
 from app.schemas.reservation import (ReservationCreate, ReservationUpdate, VenueAvailableTimeSlotRead,
-                                     ReservationRead, PaginatedReservationResponse,
+                                     ReservationRead, ReservationDetailRead, PaginatedReservationResponse,
                                      ConflictCheckResult, RecurringReservationRead, RecurringReservationUpdate,
                                      RecurringReservationCreate)
 from app.schemas.reservation import VenueCalendarResponse, CalendarTimeSlot, ReservationConfirmationResult
@@ -27,10 +26,12 @@ from app.services.notification_service import NotificationService
 from app.services.waiting_list_service import WaitingListService
 from app.services.venue_available_time_slot_service import VenueAvailableTimeSlotService
 
-from app.core.exceptions import ReservationException, ReservationNotFoundError, DatabaseError
+from app.core.exceptions import (ReservationException, ReservationNotFoundError, DatabaseError,
+                                 InvalidCheckInTimeError, InvalidReservationStatusError)
 from app.core.config import get_logger
 from contextlib import contextmanager
-from concurrent.futures import ThreadPoolExecutor
+# add check-in func
+import jwt
 
 logger = get_logger(__name__)
 
@@ -74,19 +75,7 @@ class ReservationService:
         if not reservation:
             return None
 
-        return ReservationRead(
-            id=reservation.id,
-            user_id=reservation.user_id,
-            venue_available_time_slot_id=reservation.venue_available_time_slot_id,
-            status=reservation.status,
-            date=reservation.venue_available_time_slot.date,
-            start_time=reservation.venue_available_time_slot.start_time,
-            end_time=reservation.venue_available_time_slot.end_time,
-            sport_venue_name=reservation.venue_available_time_slot.venue.sport_venue.name,
-            venue_name=reservation.venue_available_time_slot.venue.name,
-            is_recurring=reservation.is_recurring,
-            recurring_reservation_id=reservation.recurring_reservation_id
-        )
+        return ReservationService.create_reservation_read(reservation)
 
     def get_all_reservations(self, skip: int = 0, limit: int = 100) -> Tuple[List[ReservationRead], int]:
         query = (
@@ -101,22 +90,7 @@ class ReservationService:
         total_count = query.count()
         reservations = query.offset(skip).limit(limit).all()
 
-        reservation_reads = [
-            ReservationRead(
-                id=res.id,
-                user_id=res.user_id,
-                venue_available_time_slot_id=res.venue_available_time_slot_id,
-                date=res.venue_available_time_slot.date,
-                start_time=res.venue_available_time_slot.start_time,
-                end_time=res.venue_available_time_slot.end_time,
-                sport_venue_name=res.venue.sport_venue.name,
-                venue_name=res.venue.name,
-                status=res.status,
-                is_recurring=res.is_recurring,
-                recurring_reservation_id=res.recurring_reservation_id,
-            )
-            for res in reservations
-        ]
+        reservation_reads = [ReservationService.create_reservation_read(res) for res in reservations]
 
         return reservation_reads, total_count
 
@@ -158,7 +132,8 @@ class ReservationService:
                 .options(
                     joinedload(Reservation.venue_available_time_slot)
                     .joinedload(VenueAvailableTimeSlot.venue)
-                    .joinedload(Venue.sport_venue)
+                    .joinedload(Venue.sport_venue),
+                    joinedload(Reservation.user)
                 )
                 .where(Reservation.user_id == user_id)
             )
@@ -182,24 +157,12 @@ class ReservationService:
             if not paginated_reservations:
                 raise ReservationNotFoundError(f"No reservations found for user {user_id}")
 
-            reservation_reads = [
-                ReservationRead(
-                    id=r.id,
-                    user_id=r.user_id,
-                    venue_available_time_slot_id=r.venue_available_time_slot_id,
-                    status=r.status,
-                    date=r.venue_available_time_slot.date,
-                    start_time=r.venue_available_time_slot.start_time,
-                    end_time=r.venue_available_time_slot.end_time,
-                    sport_venue_name=r.venue_available_time_slot.venue.sport_venue.name,
-                    venue_name=r.venue_available_time_slot.venue.name,
-                    is_recurring=r.is_recurring,
-                    recurring_reservation_id=r.recurring_reservation_id
-                ) for r in paginated_reservations
+            reservation_detail_reads = [
+                ReservationService.create_reservation_detail_read(r) for r in paginated_reservations
             ]
 
             return PaginatedReservationResponse(
-                reservations=reservation_reads,
+                reservations=reservation_detail_reads,
                 total_count=total_count,
                 page=page,
                 page_size=page_size
@@ -258,19 +221,7 @@ class ReservationService:
                 end_time=time_slot.end_time,
                 capacity=time_slot.capacity,
                 reservations=[
-                    ReservationRead(
-                        id=res.id,
-                        user_id=res.user_id,
-                        venue_available_time_slot_id=res.venue_available_time_slot_id,
-                        status=res.status,
-                        date=time_slot.date,
-                        start_time=time_slot.start_time,
-                        end_time=time_slot.end_time,
-                        sport_venue_name=venue.sport_venue.name,
-                        venue_name=venue.name,
-                        is_recurring=res.is_recurring,
-                        recurring_reservation_id=res.recurring_reservation_id
-                    )
+                    ReservationService.create_reservation_read(res)
                     for res in time_slot.reservations
                 ]
             )
@@ -484,7 +435,7 @@ class ReservationService:
 
             # 7. 转换为ReservationRead对象并返回相应列表
             if reservations:
-                return [ReservationService._create_reservation_read(reservation) for reservation in reservations]
+                return [ReservationService.create_reservation_read(reservation) for reservation in reservations]
             else:
                 return [WaitingListRead.from_orm(item) for item in waiting_list_items]
 
@@ -498,23 +449,42 @@ class ReservationService:
             raise ReservationException(str(e))
 
     @staticmethod
-    def _create_reservation_read(reservation: Reservation) -> ReservationRead:
-        venue_slot = reservation.venue_available_time_slot
-        venue = venue_slot.venue
-        sport_venue = venue.sport_venue
-
+    def create_reservation_read(reservation: Reservation) -> ReservationRead:
         return ReservationRead(
             id=reservation.id,
             user_id=reservation.user_id,
+            venue_id=reservation.venue_available_time_slot.venue_id,
             venue_available_time_slot_id=reservation.venue_available_time_slot_id,
             status=reservation.status,
-            date=reservation.date,
-            start_time=reservation.actual_start_time,  # 用户实际预约的时间段
-            end_time=reservation.actual_end_time,  # 用户实际预约的时间段
-            sport_venue_name=sport_venue.name,
-            venue_name=venue.name,
+            date=reservation.venue_available_time_slot.date,
+            actual_start_time=reservation.actual_start_time,
+            actual_end_time=reservation.actual_end_time,
             is_recurring=reservation.is_recurring,
-            recurring_reservation_id=reservation.recurring_reservation_id
+            venue_name=reservation.venue_available_time_slot.venue.name
+        )
+
+    @staticmethod
+    def create_reservation_detail_read(reservation: Reservation) -> ReservationDetailRead:
+        return ReservationDetailRead(
+            id=reservation.id,
+            user_id=reservation.user_id,
+            venue_id=reservation.venue_available_time_slot.venue_id,
+            venue_available_time_slot_id=reservation.venue_available_time_slot_id,
+            status=reservation.status,
+            date=reservation.venue_available_time_slot.date,
+            actual_start_time=reservation.actual_start_time,
+            actual_end_time=reservation.actual_end_time,
+            is_recurring=reservation.is_recurring,
+            venue_name=reservation.venue_available_time_slot.venue.name,
+            recurring_reservation_id=reservation.recurring_reservation_id,
+            created_at=reservation.created_at,
+            updated_at=reservation.updated_at,
+            cancelled_at=reservation.cancelled_at,
+            checked_in_at=reservation.checked_in_at,
+            sport_venue_name=reservation.venue_available_time_slot.venue.sport_venue.name,
+            user_name=reservation.user.username,
+            venue_available_time_slot_start=reservation.venue_available_time_slot.start_time,
+            venue_available_time_slot_end=reservation.venue_available_time_slot.end_time
         )
 
     def _check_reservation_limit(self, user: User, venue: Venue, rules: ReservationRules):
@@ -630,18 +600,6 @@ class ReservationService:
         #         logging.error(f"Failed to find VenueAvailableTimeSlot for waiting list item ID: {waiting_list_item.id}")
         # except Exception as e:
         #     logging.error(f"Failed to send added to waiting list notification: {str(e)}")
-
-    def _get_reservation_details(self, reservation_id: int) -> Reservation:
-        return (
-            self.db.query(Reservation)
-            .options(
-                joinedload(Reservation.venue_available_time_slot)
-                .joinedload(VenueAvailableTimeSlot.venue)
-                .joinedload(Venue.sport_venue)
-            )
-            .filter(Reservation.id == reservation_id)
-            .first()
-        )
 
     # 取消预约
     def cancel_reservation(self, reservation_id: int, user_id: int) -> None:
@@ -917,20 +875,10 @@ class ReservationService:
 
         # 发送预约提醒
         for reservation in reservations:
-            reservation_read = ReservationRead(
-                id=reservation.id,
-                user_id=reservation.user_id,
-                venue_available_time_slot_id=reservation.venue_available_time_slot_id,
-                status=reservation.status,
-                date=reservation.venue_available_time_slot.date,
-                start_time=reservation.venue_available_time_slot.start_time,
-                end_time=reservation.venue_available_time_slot.end_time,
-                venue_name=reservation.venue_available_time_slot.venue.name,
-                sport_venue_name=reservation.venue_available_time_slot.venue.sport_venue.name
-            )
+            reservation_detail = ReservationService.create_reservation_detail_read(reservation)
 
             # 发送提醒通知
-            self.notification_service.send_reservation_reminder(reservation_read)
+            self.notification_service.send_reservation_reminder(reservation_detail)
 
     """
     预约的确认可以有以下几种触发条件:
@@ -1122,19 +1070,7 @@ class ReservationService:
         reservations = query.offset((page - 1) * page_size).limit(page_size).all()
 
         reservation_reads = [
-            ReservationRead(
-                id=res.id,
-                user_id=res.user_id,
-                venue_available_time_slot_id=res.venue_available_time_slot_id,
-                status=res.status,
-                date=res.venue_available_time_slot.date,
-                start_time=res.venue_available_time_slot.start_time,
-                end_time=res.venue_available_time_slot.end_time,
-                sport_venue_name=res.venue_available_time_slot.venue.sport_venue.name,
-                venue_name=res.venue_available_time_slot.venue.name,
-                is_recurring=res.is_recurring,
-                recurring_reservation_id=res.recurring_reservation_id
-            ) for res in reservations
+            ReservationService.create_reservation_detail_read(res) for res in reservations
         ]
 
         return PaginatedReservationResponse(
@@ -1151,3 +1087,79 @@ class ReservationService:
     def bulk_update_reservations(self, reservations: List[ReservationUpdate]) -> List[ReservationRead]:
         # 实现批量更新预约的逻辑
         pass
+
+    def generate_check_in_token(self, reservation_id: int) -> Dict[str, str]:
+        reservation = self._get_reservation(reservation_id)
+        self._validate_reservation_for_check_in(reservation)
+
+        now = datetime.utcnow()
+        payload = {
+            "reservation_id": reservation_id,
+            "user_id": reservation.user_id,
+            "exp": now + timedelta(minutes=settings.CHECK_IN_TOKEN_EXPIRY_MINUTES),
+            "iat": now
+        }
+
+        token = jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
+        return {
+            "token": token,
+            "expires_at": (now + timedelta(minutes=settings.CHECK_IN_TOKEN_EXPIRY_MINUTES)).isoformat()
+        }
+
+    @staticmethod
+    def verify_check_in_token(token: str) -> int:
+        try:
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+            reservation_id = payload.get("reservation_id")
+            if not reservation_id:
+                raise InvalidCheckInTimeError("Invalid token")
+            return reservation_id
+        except jwt.ExpiredSignatureError:
+            raise InvalidCheckInTimeError("Token has expired")
+        except jwt.InvalidTokenError:
+            raise InvalidCheckInTimeError("Invalid token")
+
+    def check_in(self, reservation_id: int) -> Reservation:
+        reservation = self._get_reservation(reservation_id)
+        self._validate_reservation_for_check_in(reservation)
+
+        try:
+            reservation.status = ReservationStatus.CHECKED_IN
+            reservation.checked_in_at = datetime.utcnow()
+            self.db.commit()
+            self.db.refresh(reservation)
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Failed to check in: {str(e)}")
+            raise
+
+        return reservation
+
+    @staticmethod
+    def _validate_reservation_for_check_in(reservation: Reservation) -> None:
+        if reservation.status != ReservationStatus.CONFIRMED:
+            raise InvalidReservationStatusError("Only confirmed reservations can be checked in")
+
+        now = datetime.utcnow()
+        reservation_start = datetime.combine(reservation.date, reservation.actual_start_time)
+        time_diff = abs((now - reservation_start).total_seconds() / 60)
+
+        if time_diff > settings.CHECK_IN_TIME_WINDOW_MINUTES:
+            raise InvalidCheckInTimeError("Check-in is only allowed within the specified time window")
+
+    def _get_reservation(self, reservation_id: int) -> Reservation:
+        reservation = (
+            self.db.query(Reservation)
+            .options(
+                joinedload(Reservation.venue_available_time_slot)
+                .joinedload(VenueAvailableTimeSlot.venue)
+                .joinedload(Venue.sport_venue)
+            )
+            .filter(Reservation.id == reservation_id)
+            .first()
+        )
+
+        if not reservation:
+            raise ReservationNotFoundError(f"Reservation with id {reservation_id} not found")
+
+        return reservation

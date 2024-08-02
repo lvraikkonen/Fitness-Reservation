@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Boolean, ForeignKey, TIMESTAMP, text, Enum as SqlAlchemyEnum, Date, Time
+from sqlalchemy import Column, Integer, Boolean, ForeignKey, TIMESTAMP, text, Enum as SqlAlchemyEnum, Date, Time, String
 from sqlalchemy.orm import relationship
 from app.db.database import Base
 from enum import Enum
@@ -8,6 +8,7 @@ class ReservationStatus(Enum):
     PENDING = "pending"
     CONFIRMED = "confirmed"
     CANCELLED = "cancelled"
+    CHECKED_IN = "checked_in"
 
 
 class Reservation(Base):
@@ -27,6 +28,7 @@ class Reservation(Base):
     updated_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"),
                         onupdate=text("CURRENT_TIMESTAMP"))
     cancelled_at = Column(TIMESTAMP, nullable=True)
+    checked_in_at = Column(TIMESTAMP, nullable=True)
 
     user = relationship("User", back_populates="reservations")
     venue = relationship("Venue", back_populates="reservations")

@@ -44,25 +44,39 @@ class ReservationUpdate(BaseModel):
     venue_available_time_slot_id: Optional[int] = None
 
 
-class ReservationRead(ReservationBase):
+class ReservationRead(BaseModel):
     id: int
     user_id: int
+    venue_id: int
     venue_available_time_slot_id: int
     status: ReservationStatus
     date: date
-    start_time: time
-    end_time: time
-    sport_venue_name: str
-    venue_name: str
+    actual_start_time: time
+    actual_end_time: time
     is_recurring: bool
+    venue_name: str
+
+    class Config:
+        from_attributes = True
+
+
+class ReservationDetailRead(ReservationRead):
     recurring_reservation_id: Optional[int]
+    created_at: datetime
+    updated_at: datetime
+    cancelled_at: Optional[datetime]
+    checked_in_at: Optional[datetime]
+    sport_venue_name: str
+    user_name: str
+    venue_available_time_slot_start: time  # 提供给员工的time_slot_start_time
+    venue_available_time_slot_end: time  # 提供给员工的time_slot_end_time
 
     class Config:
         from_attributes = True
 
 
 class PaginatedReservationResponse(BaseModel):
-    reservations: List[ReservationRead]
+    reservations: List[ReservationDetailRead]
     total_count: int
     page: int
     page_size: int

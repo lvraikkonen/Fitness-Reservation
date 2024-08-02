@@ -111,6 +111,18 @@ class ReservationCreateError(ReservationException):
         super().__init__(message, status_code=400)
 
 
+class InvalidReservationStatusError(ReservationException):
+    """Raised when the reservation status is invalid for the requested operation"""
+    def __init__(self, message: str = "Invalid reservation status for this operation"):
+        super().__init__(message, status_code=400)
+
+
+class InvalidCheckInTimeError(ReservationException):
+    """Raised when attempting to check in outside the allowed time window"""
+    def __init__(self, message: str = "Check-in is only allowed within the specified time window"):
+        super().__init__(message, status_code=400)
+
+
 class SportVenueException(BaseAPIException):
     """Base exception for sport venue-related errors"""
     def __init__(self, message: str = "An error occurred with the sport venue", status_code: int = 400):

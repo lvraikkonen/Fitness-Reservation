@@ -53,9 +53,9 @@ export const fetchVenueCalendar = async (venueId, startDate, endDate) => {
 const transformReservationData = (rawData) => {
   return rawData.map(item => ({
     id: item.id,
-    date: item.date || item.reservation_date,
-    start_time: item.start_time,
-    end_time: item.end_time,
+    date: dayjs(item.date).format('YYYY-MM-DD'),
+    start_time: dayjs(item.actual_start_time, 'HH:mm:ss').format('HH:mm'),
+    end_time: dayjs(item.actual_end_time, 'HH:mm:ss').format('HH:mm'),
     sport_venue_name: item.sport_venue_name || 'Unknown sport venue',
     venue_name: item.venue_name || 'Unknown venue',
     status: item.status

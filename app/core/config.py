@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     RESERVATION_CONFIRMATION_DEADLINE_HOURS: int = os.getenv("RESERVATION_CONFIRMATION_DEADLINE_HOURS")
     # AutoConfirm hours
     AUTO_CONFIRM_HOURS: int = os.getenv("AUTO_CONFIRM_HOURS")
+    # Check-in
+    CHECK_IN_TIME_WINDOW_MINUTES: int = os.getenv("CHECK_IN_TIME_WINDOW_MINUTES")
 
     # Log config
     LOG_LEVEL: str = os.getenv("LOG_LEVEL")
