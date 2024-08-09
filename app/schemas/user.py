@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, date, time
+from app.models.reservation import ReservationStatus
 
 
 class UserBase(BaseModel):
@@ -54,3 +55,40 @@ class UserResetPasswordRequest(BaseModel):
 class UserResetPassword(BaseModel):
     token: str
     new_password: str
+
+
+class UpcomingReservation(BaseModel):
+    id: int
+    venue_name: str
+    sport_venue_name: str
+    date: date
+    start_time: time
+    end_time: time
+    status: ReservationStatus
+
+
+class RecentActivity(BaseModel):
+    id: int
+    activity_type: str
+    timestamp: datetime
+    venue_name: str
+    sport_venue_name: str
+    date: Optional[date]
+    start_time: Optional[time]
+    end_time: Optional[time]
+    status: Optional[ReservationStatus]
+
+
+class RecommendedVenue(BaseModel):
+    id: int
+    name: str
+    sport_venue_name: str
+
+
+class UserDashboardResponse(BaseModel):
+    username: str
+    upcoming_reservations: List[UpcomingReservation]
+    recent_activities: List[RecentActivity]
+    recommended_venues: List[RecommendedVenue]
+    monthly_reservation_count: int
+    monthly_reservation_limit: int

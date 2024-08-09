@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, message, Tag, Space } from 'antd';
-import { getAllReservations, createReservation, cancelReservation } from '../../services/reservationService';
+import { Table, Button, message, Tag, Space, Modal } from 'antd';
+import { ExclamationCircleOutlined } from '@ant-design/icons';
+import { getAllReservations, createReservation, cancelReservation, confirmReservation } from '../../services/reservationService';
+
+const { confirm } = Modal;
 
 const ReservationManagement = () => {
   const [reservations, setReservations] = useState([]);
@@ -36,10 +39,48 @@ const ReservationManagement = () => {
     fetchReservations(pagination.current, pagination.pageSize);
   };
 
-  // 占位符函数，将来实现状态更改功能
   const handleStatusChange = async (id, newStatus) => {
-    console.log(`Status change requested for reservation ${id} to ${newStatus}`);
-    // 将来在这里实现状态更改逻辑
+    if (newStatus === 'confirmed') {
+      confirm({
+        title: 'Are you sure you want to confirm this reservation?',
+        icon: <ExclamationCircleOutlined />,
+        content: 'This action cannot be undone.',
+        onOk: async () => {
+          try {
+            await confirmReservation(id);
+            message.success('Reservation confirmed successfully');
+            // 刷新预约列表
+            fetchReservations();
+          } catch (error) {
+            message.error('Failed to confirm reservation: ' + error.message);
+          }
+        },
+        onCancel() {
+          console.log('Confirmation cancelled');
+        },
+      });
+    } else if (newStatus === 'cancelled') {
+      confirm({
+        title: 'Are you sure you want to cancel this reservation?',
+        icon: <ExclamationCircleOutlined />,
+        content: 'This action cannot be undone.',
+        onOk: async () => {
+          try {
+            await cancelReservation(id);
+            message.success('Reservation cancelled successfully');
+            // 刷新预约列表
+            fetchReservations();
+          } catch (error) {
+            message.error('Failed to cancel reservation: ' + error.message);
+          }
+        },
+        onCancel() {
+          console.log('Cancellation cancelled');
+        },
+      });
+    } else {
+      console.log(`Status change to ${newStatus} is not implemented yet`);
+    }
   };
 
   // 占位符函数，将来实现删除功能
@@ -62,13 +103,22 @@ const ReservationManagement = () => {
   };
 
   const columns = [
-    { title: 'ID', dataIndex: 'id', key: 'id' },
-    { title: 'User ID', dataIndex: 'user_id', key: 'user_id' },
-    { title: 'Date', dataIndex: 'date', key: 'date' },
-    { title: 'Start Time', dataIndex: 'start_time', key: 'start_time' },
-    { title: 'End Time', dataIndex: 'end_time', key: 'end_time' },
-    { title: 'Sport Venue', dataIndex: 'sport_venue_name', key: 'sport_venue_name' },
-    { title: 'Venue', dataIndex: 'venue_name', key: 'venue_name' },
+      { title: 'ID', dataIndex: 'id', key: 'id' },
+      { title: 'User ID', dataIndex: 'user_id', key: 'user_id' },
+      { title: 'User Name', dataIndex: 'user_name', key: 'user_name' },
+      { title: 'Date', dataIndex: 'date', key: 'date' },
+      { 
+        title: 'Start Time', 
+        dataIndex: 'venue_available_time_slot_start', 
+        key: 'venue_available_time_slot_start' 
+      },
+      { 
+        title: 'End Time', 
+        dataIndex: 'venue_available_time_slot_end', 
+        key: 'venue_available_time_slot_end' 
+      },
+      { title: 'Sport Venue', dataIndex: 'sport_venue_name', key: 'sport_venue_name' },
+      { title: 'Venue', dataIndex: 'venue_name', key: 'venue_name' },
     { 
       title: 'Status', 
       dataIndex: 'status', 

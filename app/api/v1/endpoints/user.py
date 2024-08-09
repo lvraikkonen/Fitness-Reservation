@@ -7,7 +7,7 @@ from datetime import date
 from app.core.security import create_access_token
 from app.deps import get_db
 from app.models.user import User
-from app.schemas.user import UserCreate, UserUpdate, UserResponse
+from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserDashboardResponse
 from app.schemas.token import Token
 from app.schemas.reservation import PaginatedReservationResponse
 from app.schemas.user import UserResetPasswordRequest, UserResetPassword
@@ -39,8 +39,24 @@ def login_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = D
 
 
 @router.get("/me", response_model=UserResponse)
-def get_current_user(current_user: User = Depends(get_current_user)):
+def get_current_user_info(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.get("/dashboard", response_model=UserDashboardResponse)
+def get_user_dashboard(
+        user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+    user_service = UserService(db)
+    logger.debug(f"Get current user: {user.email}")
+
+    try:
+        dashboard_data = user_service.get_dashboard_data(user.id)
+        return dashboard_data
+    except Exception as e:
+        logger.error(f"Error retrieving user dashboard data: {str(e)}")
+        raise HTTPException(status_code=500, detail="An error occurred while retrieving user dashboard data")
 
 
 @router.put("/me", response_model=UserResponse)
@@ -53,7 +69,7 @@ def update_current_user(user: UserUpdate, current_user: User = Depends(get_curre
 @router.get("/{user_id}", response_model=UserResponse)
 def get_user(user_id: int, current_user: User = Depends(get_current_admin), db: Session = Depends(get_db)):
     user_service = UserService(db)
-    user = user_service.get_user_by_id(user_id)
+    user = user_service.get_user(user_id)
     return user
 
 

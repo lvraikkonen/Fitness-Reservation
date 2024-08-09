@@ -34,3 +34,4 @@ class Reservation(Base):
     venue = relationship("Venue", back_populates="reservations")
     venue_available_time_slot = relationship("VenueAvailableTimeSlot", back_populates="reservations")
     recurring_reservation = relationship("RecurringReservation", back_populates="reservations")
+    activities = relationship("UserActivity", back_populates="reservation")

@@ -1,9 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, List, Statistic, Button, Calendar, Spin } from 'antd';
+import { Row, Col, Card, List, Statistic, Button, Calendar, Spin, Typography, Tag, Tooltip } from 'antd';
 import { Link } from 'react-router-dom';
-import { CalendarOutlined, HistoryOutlined, PlusOutlined } from '@ant-design/icons';
+import { CalendarOutlined, HistoryOutlined, PlusOutlined, CheckCircleOutlined, CloseCircleOutlined, FieldTimeOutlined } from '@ant-design/icons';
 import { getUserDashboardData } from '../services/userService';
 import { useAuth } from '../contexts/AuthContext';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+
+dayjs.extend(relativeTime);
+
+const { Text } = Typography;
+
+const ActivityIcon = ({ type }) => {
+  switch (type) {
+    case 'reservation_created':
+      return <CalendarOutlined style={{ color: '#1890ff' }} />;
+    case 'reservation_cancelled':
+      return <CloseCircleOutlined style={{ color: '#ff4d4f' }} />;
+    case 'reservation_checked_in':
+      return <CheckCircleOutlined style={{ color: '#52c41a' }} />;
+    default:
+      return <FieldTimeOutlined style={{ color: '#faad14' }} />;
+  }
+};
 
 const Dashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
@@ -14,6 +33,7 @@ const Dashboard = () => {
     const fetchDashboardData = async () => {
       try {
         const data = await getUserDashboardData();
+        console.log("Fetched dashboard data:", data);
         setDashboardData(data);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
@@ -62,28 +82,56 @@ const Dashboard = () => {
               suffix={`/ ${dashboardData.monthlyReservationLimit}`}
             />
             <Button type="primary" icon={<PlusOutlined />} style={{ marginTop: 16 }}>
-              <Link to="/venues">Quick Reserve</Link>
+              <Link to="/reservations">Quick Reserve</Link>
             </Button>
           </Card>
         </Col>
       </Row>
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col span={12}>
-          <Card title="Recent Activities" extra={<Link to="/activities">View All</Link>}>
-            <List
-              dataSource={dashboardData.recentActivities}
-              renderItem={item => (
-                <List.Item>
-                  <List.Item.Meta
-                    avatar={<HistoryOutlined />}
-                    title={item.action}
-                    description={item.date}
-                  />
-                </List.Item>
-              )}
-            />
+        <Card title="Recent Activities" extra={<Link to="/activities">View All</Link>}>
+          {console.log("Recent activities:", dashboardData.recentActivities)}
+          {Array.isArray(dashboardData.recentActivities) && dashboardData.recentActivities.length > 0 ? (
+              <List
+                itemLayout="horizontal"
+                dataSource={dashboardData.recentActivities}
+                renderItem={(item) => {
+                  return (
+                    <List.Item key={item.id}>
+                      <List.Item.Meta
+                        avatar={<ActivityIcon type={item.activity_type} />}
+                        title={
+                          <Text>
+                            {item.activity_type === 'reservation_created'
+                              ? 'Created reservation for '
+                              : item.activity_type === 'reservation_cancelled'
+                              ? 'Cancelled reservation for '
+                              : 'Checked in at '}
+                            <Text strong>{item.venue_name}</Text> at <Text strong>{item.sport_venue_name}</Text>
+                          </Text>
+                        }
+                        description={
+                          <>
+                            <Tooltip title={dayjs(item.activity_timestamp).format('YYYY-MM-DD HH:mm:ss')}>
+                              <Text type="secondary">{dayjs(item.activity_timestamp).fromNow()}</Text>
+                            </Tooltip>
+                            <br />
+                            <Text type="secondary">
+                              {dayjs(item.date).format('MMMM D, YYYY')} {item.start_time} - {item.end_time}
+                            </Text>
+                          </>
+                        }
+                      />
+                    </List.Item>
+                  );
+                }}
+              />
+            ) : (
+              <Text>No recent activities</Text>
+            )}
           </Card>
         </Col>
+
         <Col span={12}>
           <Card title="Recommended Venues" extra={<Link to="/venues">Explore More</Link>}>
             <List
@@ -94,7 +142,6 @@ const Dashboard = () => {
                 >
                   <List.Item.Meta
                     title={item.name}
-                    description={`Popular time: ${item.popularTime}`}
                   />
                 </List.Item>
               )}

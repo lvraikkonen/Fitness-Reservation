@@ -1,10 +1,19 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
 from typing import List, Optional
-from datetime import date, time, timedelta
+from datetime import datetime, date, time, timedelta
 
 from app.models.user import User
+from app.models.user_activity import UserActivity
+from app.models.venue_available_time_slot import VenueAvailableTimeSlot
+from app.models.reservation_rules import ReservationRules
 from app.schemas.user import UserCreate, UserUpdate, UserResponse
+from app.models.reservation import Reservation, ReservationStatus
+from app.models.venue import Venue
+from app.models.sport_venue import SportVenue
+from app.schemas.user import UserDashboardResponse, UpcomingReservation, RecentActivity, RecommendedVenue
+
 from app.schemas.reservation import PaginatedReservationResponse
 from app.services.reservation_service import ReservationService
 from app.core.security import (get_password_hash, verify_password,
@@ -197,4 +206,145 @@ class UserService:
         reservation_service = ReservationService(self.db)
         return reservation_service.get_user_reservation_history(
             user_id, start_date, end_date, page, page_size
+        )
+
+    def get_dashboard_data(self, user_id: int) -> UserDashboardResponse:
+        user = self.get_user(user_id=user_id)
+        current_date = datetime.now()
+        logger.debug(f"Entered into user services part")
+
+        # get top 3 upcoming reservations
+        upcoming_reservations = (
+            self.db.query(Reservation)
+            .join(Reservation.venue_available_time_slot)
+            .join(Venue)
+            .join(SportVenue)
+            .filter(
+                Reservation.user_id == user_id,
+                Reservation.status.in_([ReservationStatus.PENDING, ReservationStatus.CONFIRMED]),
+                VenueAvailableTimeSlot.date >= current_date
+            )
+            .order_by(VenueAvailableTimeSlot.date, VenueAvailableTimeSlot.start_time)
+            .limit(3)
+            .all()
+        )
+
+        # 获取最近的活动
+        VAS = aliased(VenueAvailableTimeSlot)
+
+        activities_query = (
+            self.db.query(
+                UserActivity.id,
+                UserActivity.activity_type,
+                UserActivity.timestamp,
+                func.coalesce(Venue.name, "N/A").label('venue_name'),
+                func.coalesce(SportVenue.name, "N/A").label('sport_venue_name'),
+                VAS.date,
+                VAS.start_time,
+                VAS.end_time,
+                Reservation.status
+            )
+            .outerjoin(UserActivity.reservation)
+            .outerjoin(UserActivity.venue)
+            .outerjoin(Venue.sport_venue)
+            .outerjoin(Reservation.venue_available_time_slot.of_type(VAS))
+            .filter(UserActivity.user_id == user_id)
+            .order_by(UserActivity.timestamp.desc())
+            .limit(5)
+        )
+
+        try:
+            results = activities_query.all()
+            logger.debug(f"Query executed successfully, retrieved {len(results)} activities")
+
+            recent_activities = []
+            for result in results:
+                activity = RecentActivity(
+                    id=result.id,
+                    activity_type=result.activity_type,
+                    timestamp=result.timestamp,
+                    venue_name=result.venue_name,
+                    sport_venue_name=result.sport_venue_name,
+                    date=result.date,
+                    start_time=result.start_time,
+                    end_time=result.end_time,
+                    status=result.status
+                )
+                recent_activities.append(activity)
+        except Exception as e:
+            logger.error(f"Error retrieving recent activities: {str(e)}")
+            recent_activities = []
+
+        # Get recommended venues based on user's preferred sports
+        if user.preferred_sports:
+            preferred_sports = user.preferred_sports.split(',')
+            recommended_venues = (
+                self.db.query(Venue)
+                .join(SportVenue)
+                .filter(SportVenue.name.in_(preferred_sports))
+                .order_by(func.random())
+                .limit(3)
+                .all()
+            )
+        else:
+            recommended_venues = (
+                self.db.query(Venue)
+                .join(SportVenue)
+                .order_by(func.random())
+                .limit(3)
+                .all()
+            )
+
+        # Get monthly reservation count and limit
+        start_of_month = current_date.replace(day=1)
+        monthly_reservation_count = (
+            self.db.query(func.count(Reservation.id))
+            .filter(
+                Reservation.user_id == user_id,
+                Reservation.created_at >= start_of_month,
+                Reservation.status.in_([ReservationStatus.PENDING, ReservationStatus.CONFIRMED])
+            )
+            .scalar()
+        )
+
+        # Get monthly reservation limit from ReservationRules
+        monthly_reservation_limit = (
+            self.db.query(ReservationRules.max_monthly_reservations)
+            .filter(ReservationRules.user_role == user.role)
+            .order_by(ReservationRules.id.desc())  # In case there are multiple rules, get the latest
+            .first()
+        )
+
+        # If no rule found for the user's role, use a default value or raise an exception
+        if monthly_reservation_limit is None:
+            # Option 1: Use a default value
+            monthly_reservation_limit = 20
+            # Option 2: Raise an exception
+            # raise ValueError(f"No reservation rule found for user role: {user.role}")
+        else:
+            monthly_reservation_limit = monthly_reservation_limit[0]  # Unpack the result
+
+        return UserDashboardResponse(
+            username=user.username,
+            upcoming_reservations=[
+                UpcomingReservation(
+                    id=res.id,
+                    venue_name=res.venue_available_time_slot.venue.name,
+                    sport_venue_name=res.venue_available_time_slot.venue.sport_venue.name,
+                    date=res.venue_available_time_slot.date,
+                    start_time=res.venue_available_time_slot.start_time,
+                    end_time=res.venue_available_time_slot.end_time,
+                    status=res.status
+                ) for res in upcoming_reservations
+            ],
+            recent_activities=recent_activities,
+            recommended_venues=[
+                RecommendedVenue(
+                    id=venue.id,
+                    name=venue.name,
+                    sport_venue_name=venue.sport_venue.name
+                ) for venue in recommended_venues
+            ],
+            monthly_reservation_count=monthly_reservation_count,
+            monthly_reservation_limit=monthly_reservation_limit
         )

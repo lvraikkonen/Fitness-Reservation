@@ -14,8 +14,8 @@ from contextlib import asynccontextmanager
 async def lifespan_context(app: FastAPI):
     # 在应用启动时同步初始化数据库
     loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, recreate_db)
-    await loop.run_in_executor(None, create_sample_data)
+    # await loop.run_in_executor(None, recreate_db)
+    # await loop.run_in_executor(None, create_sample_data)
     yield
     # 在应用关闭时执行清理操作（如果需要）
 

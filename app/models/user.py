@@ -33,6 +33,7 @@ class User(Base):
     leader_reserved_times = relationship("LeaderReservedTime", back_populates="user")
     waiting_lists = relationship("WaitingList", back_populates="user")
     recurring_reservations = relationship("RecurringReservation", back_populates="user")
+    activities = relationship("UserActivity", back_populates="user")
 
     @property
     def is_admin(self):

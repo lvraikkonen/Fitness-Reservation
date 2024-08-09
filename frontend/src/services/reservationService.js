@@ -19,27 +19,31 @@ export const fetchVenues = async () => {
 
 export const fetchVenueCalendar = async (venueId, startDate, endDate) => {
   try {
-    const response = await venueApi.get(`/${venueId}/available-slots`, {
+    const response = await reservationApi.get(`/venues/${venueId}/availability`, {
       params: { start_date: startDate, end_date: endDate }
     });
+
+    console.log("raw venue availability response is :", response)
     
     // 检查响应数据结构
-    if (!response.data || !Array.isArray(response.data.items)) {
+    if (!response.data || !Array.isArray(response.data)) {
       console.error('Unexpected response format:', response.data);
       return {};
     }
 
     // 将数据转换为所需的格式
-    const formattedData = response.data.items.reduce((acc, slot) => {
-      if (!acc[slot.date]) {
-        acc[slot.date] = [];
-      }
-      acc[slot.date].push({
-        id: slot.id,
+    const formattedData = response.data.reduce((acc, dayData) => {
+      const { date, venue_id, venue_name, time_slots } = dayData;
+      
+      acc[date] = time_slots.map(slot => ({
+        id: `${venue_id}-${date}-${slot.start_time}`, // 创建一个唯一ID
         startTime: slot.start_time,
         endTime: slot.end_time,
-        capacity: slot.capacity
-      });
+        availableCapacity: slot.available_capacity,
+        totalCapacity: slot.total_capacity,
+        venueName: venue_name
+      }));
+
       return acc;
     }, {});
 
@@ -155,9 +159,20 @@ export const createReservation = async (venueId, reservationData) => {
 
 export const cancelReservation = async (reservationId) => {
   try {
-    await reservationApi.delete(`/reservations/${reservationId}`);
+    const response = await reservationApi.delete(`/reservations/${reservationId}`);
+    return response.data;
   } catch (error) {
     console.error('Error cancelling reservation:', error);
+    throw error;
+  }
+};
+
+export const confirmReservation = async (reservationId) => {
+  try {
+    const response = await reservationApi.post(`/reservations/${reservationId}/confirm`);
+    return response.data;
+  } catch (error) {
+    console.error('Error confirming reservation:', error);
     throw error;
   }
 };

@@ -6,6 +6,7 @@ from sqlalchemy import and_, or_, select
 from datetime import datetime, timedelta, date
 from app.core.config import settings
 
+from app.models import UserActivity
 from app.models.sport_venue import SportVenue
 from app.models.user import User, UserRole
 from app.models.venue import Venue
@@ -77,22 +78,32 @@ class ReservationService:
 
         return ReservationService.create_reservation_read(reservation)
 
-    def get_all_reservations(self, skip: int = 0, limit: int = 100) -> Tuple[List[ReservationRead], int]:
-        query = (
-            self.db.query(Reservation)
-            .options(
-                joinedload(Reservation.venue_available_time_slot),
-                joinedload(Reservation.venue).joinedload(Venue.sport_venue)
+    def get_all_reservations(self, skip: int = 0, limit: int = 100) -> Tuple[List[ReservationDetailRead], int]:
+        try:
+            query = (
+                self.db.query(Reservation)
+                .options(
+                    joinedload(Reservation.venue_available_time_slot),
+                    joinedload(Reservation.venue).joinedload(Venue.sport_venue),
+                    joinedload(Reservation.user)
+                )
+                .order_by(Reservation.created_at.desc())
             )
-            .order_by(Reservation.created_at.desc())
-        )
 
-        total_count = query.count()
-        reservations = query.offset(skip).limit(limit).all()
+            total_count = query.count()
+            reservations = query.offset(skip).limit(limit).all()
 
-        reservation_reads = [ReservationService.create_reservation_read(res) for res in reservations]
+            reservation_detail_reads = [ReservationService.create_reservation_detail_read(res) for res in reservations]
 
-        return reservation_reads, total_count
+            logger.info(f"Retrieved {len(reservation_detail_reads)} reservations out of {total_count}")
+            return reservation_detail_reads, total_count
+
+        except SQLAlchemyError as e:
+            logger.error(f"Database error in get_all_reservations: {str(e)}")
+            raise DatabaseError("Error retrieving reservations from database")
+        except Exception as e:
+            logger.error(f"Unexpected error in get_all_reservations: {str(e)}")
+            raise ReservationException("An unexpected error occurred while retrieving reservations")
 
     def update_reservation(self, reservation_id: int, reservation: ReservationUpdate):
         db_reservation = self.db.query(Reservation).filter(Reservation.id == reservation_id).first()
@@ -125,7 +136,7 @@ class ReservationService:
         try:
             # 构建基础查询
             query = (
-                select(Reservation)
+                self.db.query(Reservation)
                 .join(VenueAvailableTimeSlot, Reservation.venue_available_time_slot_id == VenueAvailableTimeSlot.id)
                 .join(Venue, VenueAvailableTimeSlot.venue_id == Venue.id)
                 .join(SportVenue, Venue.sport_venue_id == SportVenue.id)
@@ -135,27 +146,21 @@ class ReservationService:
                     .joinedload(Venue.sport_venue),
                     joinedload(Reservation.user)
                 )
-                .where(Reservation.user_id == user_id)
+                .filter(Reservation.user_id == user_id)
             )
 
             if venue_id:
-                query = query.where(Venue.id == venue_id)
+                query = query.filter(Venue.id == venue_id)
 
             if status:
-                query = query.where(Reservation.status == status)
-
-            # 执行查询
-            result = self.db.execute(query)
-            reservations = result.unique().scalars().all()
+                query = query.filter(Reservation.status == status)
 
             # 计算总数
-            total_count = self.db.query(Reservation).filter(Reservation.user_id == user_id).count()
+            total_count = query.count()
 
             # 应用分页
-            paginated_reservations = reservations[(page - 1) * page_size: page * page_size]
-
-            if not paginated_reservations:
-                raise ReservationNotFoundError(f"No reservations found for user {user_id}")
+            reservations = query.order_by(Reservation.created_at.desc())
+            paginated_reservations = reservations.offset((page - 1) * page_size).limit(page_size).all()
 
             reservation_detail_reads = [
                 ReservationService.create_reservation_detail_read(r) for r in paginated_reservations
@@ -167,9 +172,9 @@ class ReservationService:
                 page=page,
                 page_size=page_size
             )
-        except ReservationException as e:
-            logging.error(f"Reservation error: {str(e)}")
-            raise
+        except SQLAlchemyError as e:
+            logging.error(f"Database error in get_user_reservations: {str(e)}")
+            raise ReservationException("A database error occurred")
         except Exception as e:
             logging.error(f"Unexpected error in get_user_reservations: {str(e)}")
             raise ReservationException("An unexpected error occurred")
@@ -322,6 +327,26 @@ class ReservationService:
         # 返回冲突的日期和时间列表
         pass
 
+    # 私有方法记录用户的Reservation操作
+    def _create_user_activity(
+            self,
+            user_id: int,
+            activity_type: str,
+            reservation_id: int = None,
+            venue_id: int = None,
+            details: str = None
+    ):
+        user_activity = UserActivity(
+            user_id=user_id,
+            activity_type=activity_type,
+            reservation_id=reservation_id,
+            venue_id=venue_id,
+            timestamp=datetime.now(),
+            details=details
+        )
+        self.db.add(user_activity)
+        return user_activity
+
     # 创建预约
     def create_reservation(
             self, reservation_data: ReservationCreate
@@ -341,20 +366,46 @@ class ReservationService:
                                 f"Reservation with id {result.id} was not found in the database after creation")
                         logger.debug(f"Reservation verified in database: {verification}")
 
-            # 发送通知
-            if results:
-                if isinstance(results[0], ReservationRead):
-                    for result in results:
-                        ReservationService._notify_reservation_created(result)
-                        logger.info(f"Notification sent for created reservation: {result.id}")
+                        # 创建用户活动记录
+                        user_activity = UserActivity(
+                            user_id=result.user_id,
+                            activity_type="reservation_created",
+                            reservation_id=result.id,
+                            venue_id=verification.venue_id,
+                            timestamp=datetime.now(),
+                            details=f"Created reservation for venue {verification.venue_id} on {result.date}"
+                        )
+                        self.db.add(user_activity)
+                        logger.info(f"User activity record created for reservation: {result.id}")
+
                 elif isinstance(results[0], WaitingListRead):
                     for result in results:
-                        ReservationService._notify_added_to_waiting_list(result)
-                        logger.info(f"Notification sent for waiting list addition: {result.id}")
+                        # 创建用户活动记录（加入等待列表）
+                        user_activity = UserActivity(
+                            user_id=result.user_id,
+                            activity_type="joined_waiting_list",
+                            venue_id=result.venue_available_time_slot.venue_id,
+                            timestamp=datetime.now(),
+                            details=f"Joined waiting list for venue {result.venue_available_time_slot.venue_id} on \
+                             {result.venue_available_time_slot.date}"
+                        )
+                        self.db.add(user_activity)
+                        logger.info(f"User activity record created for joining waiting list: {result.id}")
+
+                # 发送通知
+                if results:
+                    if isinstance(results[0], ReservationRead):
+                        for result in results:
+                            ReservationService._notify_reservation_created(result)
+                            logger.info(f"Notification sent for created reservation: {result.id}")
+                    elif isinstance(results[0], WaitingListRead):
+                        for result in results:
+                            ReservationService._notify_added_to_waiting_list(result)
+                            logger.info(f"Notification sent for waiting list addition: {result.id}")
+                    else:
+                        logger.warning(f"Unexpected result type: {type(results[0])}")
                 else:
-                    logger.warning(f"Unexpected result type: {type(results[0])}")
-            else:
-                logger.warning("No results returned from _create_reservation_logic")
+                    logger.warning("No results returned from _create_reservation_logic")
 
             return results
         except SQLAlchemyError as e:
@@ -453,39 +504,46 @@ class ReservationService:
         return ReservationRead(
             id=reservation.id,
             user_id=reservation.user_id,
-            venue_id=reservation.venue_available_time_slot.venue_id,
+            venue_id=reservation.venue_id,
             venue_available_time_slot_id=reservation.venue_available_time_slot_id,
             status=reservation.status,
             date=reservation.venue_available_time_slot.date,
             actual_start_time=reservation.actual_start_time,
             actual_end_time=reservation.actual_end_time,
             is_recurring=reservation.is_recurring,
-            venue_name=reservation.venue_available_time_slot.venue.name
+            venue_name=reservation.venue.name
         )
 
     @staticmethod
     def create_reservation_detail_read(reservation: Reservation) -> ReservationDetailRead:
-        return ReservationDetailRead(
-            id=reservation.id,
-            user_id=reservation.user_id,
-            venue_id=reservation.venue_available_time_slot.venue_id,
-            venue_available_time_slot_id=reservation.venue_available_time_slot_id,
-            status=reservation.status,
-            date=reservation.venue_available_time_slot.date,
-            actual_start_time=reservation.actual_start_time,
-            actual_end_time=reservation.actual_end_time,
-            is_recurring=reservation.is_recurring,
-            venue_name=reservation.venue_available_time_slot.venue.name,
-            recurring_reservation_id=reservation.recurring_reservation_id,
-            created_at=reservation.created_at,
-            updated_at=reservation.updated_at,
-            cancelled_at=reservation.cancelled_at,
-            checked_in_at=reservation.checked_in_at,
-            sport_venue_name=reservation.venue_available_time_slot.venue.sport_venue.name,
-            user_name=reservation.user.username,
-            venue_available_time_slot_start=reservation.venue_available_time_slot.start_time,
-            venue_available_time_slot_end=reservation.venue_available_time_slot.end_time
-        )
+        try:
+            return ReservationDetailRead(
+                id=reservation.id,
+                user_id=reservation.user_id,
+                venue_id=reservation.venue_id,
+                venue_available_time_slot_id=reservation.venue_available_time_slot_id,
+                status=reservation.status,
+                date=reservation.date,
+                actual_start_time=reservation.actual_start_time,
+                actual_end_time=reservation.actual_end_time,
+                is_recurring=reservation.is_recurring,
+                venue_name=reservation.venue.name if reservation.venue else "",
+                recurring_reservation_id=reservation.recurring_reservation_id,
+                created_at=reservation.created_at,
+                updated_at=reservation.updated_at,
+                cancelled_at=reservation.cancelled_at,
+                checked_in_at=reservation.checked_in_at,
+                sport_venue_name=reservation.venue.sport_venue.name if reservation.venue and reservation.venue.sport_venue else "",
+                user_name=reservation.user.username if reservation.user else "",
+                venue_available_time_slot_start=reservation.venue_available_time_slot.start_time if reservation.venue_available_time_slot else None,
+                venue_available_time_slot_end=reservation.venue_available_time_slot.end_time if reservation.venue_available_time_slot else None
+            )
+        except AttributeError as e:
+            logger.error(f"AttributeError in create_reservation_detail_read: {str(e)}")
+            raise ReservationException(f"Error creating reservation detail: {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error in create_reservation_detail_read: {str(e)}")
+            raise ReservationException(f"An unexpected error occurred while creating reservation detail: {str(e)}")
 
     def _check_reservation_limit(self, user: User, venue: Venue, rules: ReservationRules):
         today = datetime.now().date()
@@ -603,52 +661,65 @@ class ReservationService:
 
     # 取消预约
     def cancel_reservation(self, reservation_id: int, user_id: int) -> None:
+        logger.info(f"Attempting to cancel reservation {reservation_id} for user {user_id}")
         try:
-            reservation = self.db.query(Reservation).filter(Reservation.id == reservation_id).with_for_update().first()
-            if not reservation:
-                raise ReservationException(f"Reservation with id {reservation_id} not found")
+            with self.transaction():
+                reservation = self.db.query(Reservation).filter(
+                    Reservation.id == reservation_id).with_for_update().first()
+                if not reservation:
+                    raise ReservationException(f"Reservation with id {reservation_id} not found")
 
-            # 检查用户权限
-            if not self._can_cancel_reservation(reservation, user_id):
-                raise ReservationException(f"User {user_id} is not authorized to cancel reservation {reservation_id}")
+                # 检查用户权限
+                if not self._can_cancel_reservation(reservation, user_id):
+                    raise ReservationException(
+                        f"User {user_id} is not authorized to cancel reservation {reservation_id}")
 
-            # 检查预约状态
-            if reservation.status == ReservationStatus.CANCELLED:
-                raise ReservationException(f"Reservation {reservation_id} is already cancelled")
+                # 检查预约状态
+                if reservation.status == ReservationStatus.CANCELLED:
+                    raise ReservationException(f"Reservation {reservation_id} is already cancelled")
 
-            # 检查取消时间
-            if not self._is_cancellation_allowed(reservation):
-                raise ReservationException(
-                    f"Cannot cancel reservation {reservation_id} as it's too close to the start time")
+                # 检查取消时间
+                if not self._is_cancellation_allowed(reservation):
+                    raise ReservationException(
+                        f"Cannot cancel reservation {reservation_id} as it's too close to the start time")
 
-            # 更新预约状态为已取消
-            reservation.status = ReservationStatus.CANCELLED
-            reservation.cancelled_at = datetime.now()  # 记录取消时间
-            logger.info(f"Reservation {reservation_id} has been cancelled by user {user_id}")
+                # 更新预约状态为已取消
+                reservation.status = ReservationStatus.CANCELLED
+                reservation.cancelled_at = datetime.now()  # 记录取消时间
+                logger.info(f"Reservation {reservation_id} has been cancelled by user {user_id}")
 
-            # 增加对应时间段的可用容量
-            venue_available_time_slot = reservation.venue_available_time_slot
-            venue_available_time_slot.capacity += 1
+                # 增加对应时间段的可用容量
+                venue_available_time_slot = reservation.venue_available_time_slot
+                venue_available_time_slot.capacity += 1
 
-            # 处理等待列表
-            self._handle_waiting_list(reservation)
+                # 处理等待列表
+                self._handle_waiting_list(reservation)
 
-            # 显式提交事务
-            self.db.commit()
+                # 创建用户活动记录
+                user_activity = UserActivity(
+                    user_id=user_id,
+                    activity_type="reservation_cancelled",
+                    reservation_id=reservation_id,
+                    venue_id=reservation.venue_id,
+                    timestamp=datetime.now(),
+                    details=f"Cancelled reservation {reservation_id} for venue {reservation.venue_id}"
+                )
+                self.db.add(user_activity)
+                logger.info(f"User activity record created for cancelling reservation: {reservation_id}")
+
+            # 事务成功提交后，发送通知
+            self._notify_cancellation(reservation)
+            logger.info(f"Cancellation notification sent for reservation {reservation_id}")
+
         except ReservationException as e:
             logger.warning(str(e))
             raise
         except SQLAlchemyError as e:
-            self.db.rollback()
             logger.error(f"Database error occurred while cancelling reservation {reservation_id}: {str(e)}")
             raise DatabaseError(f"Failed to cancel reservation: {str(e)}")
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Unexpected error occurred while cancelling reservation {reservation_id}: {str(e)}")
             raise
-        else:
-            # 通知原预约用户预约已取消
-            self._notify_cancellation(reservation)
 
     def _can_cancel_reservation(self, reservation: Reservation, user_id: int) -> bool:
         # 检查用户是否是预约的创建者或管理员
@@ -1120,20 +1191,37 @@ class ReservationService:
             raise InvalidCheckInTimeError("Invalid token")
 
     def check_in(self, reservation_id: int) -> Reservation:
-        reservation = self._get_reservation(reservation_id)
-        self._validate_reservation_for_check_in(reservation)
-
+        logger.info(f"Attempting to check in reservation {reservation_id}")
         try:
-            reservation.status = ReservationStatus.CHECKED_IN
-            reservation.checked_in_at = datetime.utcnow()
-            self.db.commit()
-            self.db.refresh(reservation)
-        except Exception as e:
-            self.db.rollback()
-            logger.error(f"Failed to check in: {str(e)}")
-            raise
+            with self.transaction():
+                reservation = self._get_reservation(reservation_id)
+                self._validate_reservation_for_check_in(reservation)
 
-        return reservation
+                reservation.status = ReservationStatus.CHECKED_IN
+                reservation.checked_in_at = datetime.utcnow()
+
+                # 创建用户活动记录
+                user_activity = UserActivity(
+                    user_id=reservation.user_id,
+                    activity_type="reservation_checked_in",
+                    reservation_id=reservation_id,
+                    venue_id=reservation.venue_id,
+                    timestamp=datetime.utcnow(),
+                    details=f"Checked in for reservation {reservation_id} at venue {reservation.venue_id}"
+                )
+                self.db.add(user_activity)
+
+                self.db.flush()  # 确保所有更改都被写入数据库
+                logger.info(f"Reservation {reservation_id} has been checked in successfully")
+                logger.info(f"User activity record created for check-in: {reservation_id}")
+
+            # 事务成功后刷新预约对象
+            self.db.refresh(reservation)
+            return reservation
+
+        except Exception as e:
+            logger.error(f"Failed to check in reservation {reservation_id}: {str(e)}")
+            raise
 
     @staticmethod
     def _validate_reservation_for_check_in(reservation: Reservation) -> None:

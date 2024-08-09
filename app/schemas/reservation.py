@@ -60,16 +60,26 @@ class ReservationRead(BaseModel):
         from_attributes = True
 
 
-class ReservationDetailRead(ReservationRead):
-    recurring_reservation_id: Optional[int]
+class ReservationDetailRead(BaseModel):
+    id: int
+    user_id: int
+    venue_id: int
+    venue_available_time_slot_id: int
+    status: ReservationStatus
+    date: date
+    actual_start_time: time
+    actual_end_time: time
+    is_recurring: bool
+    venue_name: str
+    recurring_reservation_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
-    cancelled_at: Optional[datetime]
-    checked_in_at: Optional[datetime]
+    cancelled_at: Optional[datetime] = None
+    checked_in_at: Optional[datetime] = None
     sport_venue_name: str
     user_name: str
-    venue_available_time_slot_start: time  # 提供给员工的time_slot_start_time
-    venue_available_time_slot_end: time  # 提供给员工的time_slot_end_time
+    venue_available_time_slot_start: time
+    venue_available_time_slot_end: time
 
     class Config:
         from_attributes = True
