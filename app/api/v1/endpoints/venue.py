@@ -14,6 +14,7 @@ router = APIRouter()
 @router.get("/venues", response_model=List[VenueRead])
 def list_venues(
     sport_venue_id: Optional[int] = None,
+    sport_type: Optional[str] = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
     db: Session = Depends(get_db)
@@ -24,11 +25,13 @@ def list_venues(
 
 @router.get("/venues/search", response_model=List[VenueRead])
 def search_venues(
-    query: str = Query(..., min_length=1),
+    query: Optional[str] = Query(None),
+    sport_type: Optional[str] = None,
+    limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db)
 ):
     venue_service = VenueService(db)
-    return venue_service.search_venues(query)
+    return venue_service.search_venues(query, sport_type=sport_type, limit=limit)
 
 
 @router.get("/venues/stats", response_model=VenueStats)

@@ -1,7 +1,7 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from datetime import date, time, timedelta
 
 from app.models.reservation import ReservationStatus, Reservation
@@ -100,8 +100,21 @@ class VenueService:
             logger.error(f"Database error occurred while deleting venue: {str(e)}")
             raise VenueDeleteError(f"Failed to delete venue: {str(e)}")
 
-    def search_venues(self, query: str, limit: int = 10) -> List[Venue]:
-        return self.db.query(Venue).filter(Venue.name.ilike(f"%{query}%")).limit(limit).all()
+    def search_venues(self, query: Optional[str] = None, sport_type: Optional[str] = None, limit: int = 10) -> List[Venue]:
+        search_query = self.db.query(Venue)
+
+        if query:
+            search_query = search_query.filter(
+                or_(
+                    Venue.name.ilike(f"%{query}%"),
+                    Venue.description.ilike(f"%{query}%")
+                )
+            )
+
+        if sport_type:
+            search_query = search_query.filter(func.lower(Venue.sport_type) == func.lower(sport_type))
+
+        return search_query.limit(limit).all()
 
     def check_venue_availability(self, venue_id: int, start_date: date, end_date: date) -> List[VenueAvailabilityRead]:
         # 检查输入的有效性

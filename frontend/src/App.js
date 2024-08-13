@@ -16,6 +16,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import Venues from './pages/Venues';
 import Reservations from './pages/Reservations';
 import Feedback from './pages/Feedback';
 import Profile from './pages/Profile';
@@ -56,6 +57,7 @@ function App() {
                 {/* 普通用户路由 */}
                 <Route element={<PrivateRoute><MainLayout /></PrivateRoute>}>
                   <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/venues" element={<Venues />} />
                   <Route path="/reservations" element={<Reservations />} />
                   <Route path="/feedback" element={<Feedback />} />
                   <Route path="/profile" element={<Profile />} />

@@ -10,6 +10,7 @@ class SportVenue(Base):
     name = Column(String(50), unique=True, nullable=False)
     location = Column(String(100), nullable=False)
     description = Column(String(500))
+    image_url = Column(String(255))
     created_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
     updated_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP"))
 

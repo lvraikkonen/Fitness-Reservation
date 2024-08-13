@@ -39,8 +39,8 @@ def create_sample_data():
         # 创建具体场馆
         create_sample_venues(db)
 
-        # 创建场馆设施
-        create_sample_facilities(db)
+        # # 创建场馆设施
+        # create_sample_facilities(db)
 
         # 创建预约规则
         create_sample_reservation_rules(db)
@@ -80,8 +80,24 @@ def create_sample_users(db: Session):
 
 def create_sample_sport_venues(db: Session):
     sport_venues = [
-        SportVenue(name="Main Gym", location="Building A"),
-        SportVenue(name="Outdoor Field", location="Behind Building B"),
+        SportVenue(
+            name="Main Gym",
+            location="Building A",
+            description="Our state-of-the-art indoor gymnasium",
+            image_url="https://www.lbcc.edu/sites/main/files/imagecache/lightbox/main-images/main_gym_02.jpg"
+        ),
+        SportVenue(
+            name="Outdoor Field",
+            location="Behind Building B",
+            description="Spacious outdoor area for various sports",
+            image_url="http://image.gxnews.com.cn/uploadpic/2022/11/07/a89faca5b138a771d216d1cd1e2de609.jpg"
+        ),
+        SportVenue(
+            name="Aquatic Center",
+            location="East Wing",
+            description="Modern swimming facilities",
+            image_url="https://www.urbanaparks.org/assets/1/14/UIAC-lanes1.jpg"
+        )
     ]
     db.add_all(sport_venues)
     db.commit()
@@ -89,12 +105,61 @@ def create_sample_sport_venues(db: Session):
 
 def create_sample_venues(db: Session):
     venues = [
-        Venue(sport_venue_id=1, name="Basketball Court", capacity=20, default_capacity=20,
-              status=VenueStatus.OPEN, notice="Please wear appropriate footwear."),
-        Venue(sport_venue_id=1, name="Yoga Room", capacity=15, default_capacity=15,
-              status=VenueStatus.OPEN, notice="Yoga mats are provided."),
-        Venue(sport_venue_id=2, name="Soccer Field", capacity=30, default_capacity=30,
-              status=VenueStatus.OPEN, notice="No metal cleats allowed."),
+        Venue(
+            sport_venue_id=1,
+            name="Basketball Court",
+            sport_type="Basketball",
+            capacity=20,
+            default_capacity=20,
+            status=VenueStatus.OPEN,
+            description="Full-size basketball court with high-quality flooring",
+            image_url="https://s3-media0.fl.yelpcdn.com/bphoto/wEd7V9tBLyxorEkAGTbQhg/o.jpg",
+            notice="Please wear appropriate non-marking footwear."
+        ),
+        Venue(
+            sport_venue_id=1,
+            name="Yoga Studio",
+            sport_type="Yoga",
+            capacity=15,
+            default_capacity=15,
+            status=VenueStatus.OPEN,
+            description="Tranquil studio with mirrors and natural lighting",
+            image_url="https://images.squarespace-cdn.com/content/v1/642ee1e2d910fd01424b424d/f525b7e8-e40b-478e-92fb-1182933fdcde/Studio%2BWarrior%2B1.jpg",
+            notice="Yoga mats and blocks are provided. Please bring your own towel."
+        ),
+        Venue(
+            sport_venue_id=2,
+            name="Soccer Field",
+            sport_type="Soccer",
+            capacity=30,
+            default_capacity=30,
+            status=VenueStatus.OPEN,
+            description="Professional-grade soccer field with natural grass",
+            image_url="https://www.aturf.com/wp-content/uploads/2021/11/sahlens-flash-field-corner-kick-sunset-listing.jpg",
+            notice="No metal cleats allowed. Field may be closed during inclement weather."
+        ),
+        Venue(
+            sport_venue_id=3,
+            name="Olympic Pool",
+            sport_type="Swimming",
+            capacity=40,
+            default_capacity=40,
+            status=VenueStatus.OPEN,
+            description="25-meter, 8-lane Olympic-sized swimming pool",
+            image_url="https://cdn.theatlantic.com/thumbor/M0tf3of71gjCsz2T_0tgL0XDRAA=/0x515:3499x2337/1200x625/media/img/mt/2015/09/RTR35GY4/original.jpg",
+            notice="Shower before entering the pool. No diving in shallow areas."
+        ),
+        Venue(
+            sport_venue_id=1,
+            name="Badminton Court",
+            sport_type="Badminton",
+            capacity=8,
+            default_capacity=8,
+            status=VenueStatus.MAINTENANCE,
+            description="Indoor badminton court with proper lighting",
+            image_url="https://www.enkarl.com/wp-content/uploads/2022/03/image005-1024x576.jpg",
+            notice="Currently under maintenance. Will reopen next week."
+        )
     ]
     db.add_all(venues)
     db.commit()
@@ -155,7 +220,7 @@ def create_sample_available_time_slots(db: Session):
     ]
 
     # 定义场馆容量
-    venue_capacities = {1: 20, 2: 15, 3: 30}
+    venue_capacities = {1: 20, 2: 15, 3: 30, 4: 30, 5: 40}
 
     for i in range(8):  # 创建未来7天的时间段, 包括今天
         date_key = today + timedelta(days=i)

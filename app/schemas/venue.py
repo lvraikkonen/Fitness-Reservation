@@ -9,6 +9,9 @@ class VenueBase(BaseModel):
     capacity: int
     default_capacity: int
     status: VenueStatus
+    sport_type: str  # 新增字段
+    description: Optional[str] = None  # 新增字段
+    image_url: Optional[str] = None  # 新增字段
     notice: Optional[str] = None
 
     @field_validator('default_capacity')
@@ -27,6 +30,9 @@ class VenueUpdate(BaseModel):
     capacity: Optional[int] = None
     default_capacity: Optional[int] = None
     status: Optional[VenueStatus] = None
+    sport_type: Optional[str] = None  # 新增字段
+    description: Optional[str] = None  # 新增字段
+    image_url: Optional[str] = None  # 新增字段
     notice: Optional[str] = None
 
     @field_validator('default_capacity')
@@ -40,6 +46,16 @@ class VenueUpdate(BaseModel):
 class VenueRead(BaseModel):
     id: int
     name: str
+    capacity: int
+    default_capacity: int
+    status: VenueStatus
+    sport_type: str
+    description: Optional[str] = None
+    image_url: Optional[str] = None
+    notice: Optional[str] = None
+    sport_venue_id: int
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
@@ -48,13 +64,3 @@ class VenueRead(BaseModel):
 class VenueStats(BaseModel):
     total_venues: int
     status_counts: Dict[str, int]
-
-
-class Venue(VenueBase):
-    id: int
-    sport_venue_id: int
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
