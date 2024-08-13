@@ -1,135 +1,194 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Button, Rate, message, List, Card, Typography, Select, Modal } from 'antd';
-import { useNavigate } from 'react-router-dom';
-import MainLayout from '../components/MainLayout';
-import { submitFeedback, getFeedbackList } from '../services/feedbackService';
-import { getVenues } from '../services/venueService';
+import { List, Card, Modal, Form, Input, Button, Rate, message, Spin, Pagination, Tabs } from 'antd';
+import { EditOutlined, DeleteOutlined, CommentOutlined } from '@ant-design/icons';
+import { getFeedbacks, getMyFeedbacks, createFeedback, updateFeedback, deleteFeedback, replyToFeedback } from '../services/feedbackService';
+import { useAuth } from '../contexts/AuthContext';
 
 const { TextArea } = Input;
-const { Title } = Typography;
-const { Option } = Select;
+const { TabPane } = Tabs;
 
 const Feedback = () => {
-  const [form] = Form.useForm();
-  const [feedbackList, setFeedbackList] = useState([]);
+  const [feedbacks, setFeedbacks] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [venues, setVenues] = useState([]);
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const navigate = useNavigate();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [form] = Form.useForm();
+  const [editingFeedbackId, setEditingFeedbackId] = useState(null);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [activeTab, setActiveTab] = useState('all');
+  const { user } = useAuth();
 
   useEffect(() => {
-    fetchFeedbackList();
-    fetchVenues();
-  }, []);
+    fetchFeedbacks();
+  }, [page, activeTab]);
 
-  const fetchFeedbackList = async () => {
-    try {
-      const data = await getFeedbackList();
-      setFeedbackList(data);
-    } catch (error) {
-      message.error('Failed to fetch feedback list');
-    }
-  };
-
-  const fetchVenues = async () => {
-    try {
-      const data = await getVenues();
-      setVenues(data);
-    } catch (error) {
-      message.error('Failed to fetch venues');
-    }
-  };
-
-  const onFinish = async (values) => {
+  const fetchFeedbacks = async () => {
     setLoading(true);
     try {
-      await submitFeedback(values);
-      message.success('Feedback submitted successfully');
-      form.resetFields();
-      fetchFeedbackList();
-      setIsModalVisible(true);
+      let data;
+      if (activeTab === 'my') {
+        data = await getMyFeedbacks(page);
+      } else {
+        data = await getFeedbacks(page);
+      }
+      setFeedbacks(data.items);
+      setTotal(data.total);
     } catch (error) {
-      message.error('Failed to submit feedback: ' + error.message);
+      message.error('Failed to fetch feedbacks');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleModalOk = () => {
-    setIsModalVisible(false);
-    navigate('/dashboard');
+  const handleSubmit = async (values) => {
+    try {
+      if (editingFeedbackId) {
+        await updateFeedback(editingFeedbackId, values);
+        message.success('Feedback updated successfully');
+      } else {
+        await createFeedback(values);
+        message.success('Feedback submitted successfully');
+      }
+      setModalVisible(false);
+      form.resetFields();
+      fetchFeedbacks();
+    } catch (error) {
+      message.error('Failed to submit feedback');
+    }
   };
 
-  const handleModalCancel = () => {
-    setIsModalVisible(false);
+  const handleEdit = (feedback) => {
+    setEditingFeedbackId(feedback.id);
+    form.setFieldsValue(feedback);
+    setModalVisible(true);
   };
+
+  const handleDelete = async (feedbackId) => {
+    try {
+      await deleteFeedback(feedbackId);
+      message.success('Feedback deleted successfully');
+      fetchFeedbacks();
+    } catch (error) {
+      message.error('Failed to delete feedback');
+    }
+  };
+
+  const handleReply = async (feedbackId, reply) => {
+    try {
+      await replyToFeedback(feedbackId, reply);
+      message.success('Reply submitted successfully');
+      fetchFeedbacks();
+    } catch (error) {
+      message.error('Failed to submit reply');
+    }
+  };
+
+  const renderFeedbackList = () => (
+    <>
+      <List
+        grid={{ gutter: 16, column: 3 }}
+        dataSource={feedbacks}
+        renderItem={(item) => (
+          <List.Item>
+            <Card
+              actions={[
+                item.user_id === user.id && (
+                  <EditOutlined key="edit" onClick={() => handleEdit(item)} />
+                ),
+                item.user_id === user.id && (
+                  <DeleteOutlined key="delete" onClick={() => handleDelete(item.id)} />
+                ),
+                user.role === 'admin' && (
+                  <CommentOutlined
+                    key="reply"
+                    onClick={() => {
+                      Modal.confirm({
+                        title: 'Reply to Feedback',
+                        content: (
+                          <TextArea rows={4} onChange={(e) => (this.replyContent = e.target.value)} />
+                        ),
+                        onOk: () => handleReply(item.id, this.replyContent),
+                      });
+                    }}
+                  />
+                ),
+              ].filter(Boolean)}
+            >
+              <Card.Meta
+                title={item.title}
+                description={
+                  <>
+                    <p><strong>User:</strong> {item.user_name}</p>
+                    <Rate disabled defaultValue={item.rating} />
+                    <p>{item.content}</p>
+                    {item.reply && (
+                      <div>
+                        <strong>Reply:</strong> {item.reply}
+                      </div>
+                    )}
+                  </>
+                }
+              />
+            </Card>
+          </List.Item>
+        )}
+      />
+      <Pagination
+        current={page}
+        total={total}
+        onChange={(newPage) => setPage(newPage)}
+        pageSize={10}
+        showSizeChanger={false}
+      />
+    </>
+  );
 
   return (
-    <MainLayout>
-      <div style={{ padding: '24px' }}>
-        <Title level={2}>Feedback</Title>
-        <Card title="Submit Feedback">
-          <Form form={form} onFinish={onFinish} layout="vertical">
-            <Form.Item name="venue_id" label="Venue" rules={[{ required: true, message: 'Please select a venue!' }]}>
-              <Select>
-                {venues.map(venue => (
-                  <Option key={venue.id} value={venue.id}>{venue.name}</Option>
-                ))}
-              </Select>
-            </Form.Item>
-            <Form.Item name="title" label="Title" rules={[{ required: true, message: 'Please input a title!' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="content" label="Content" rules={[{ required: true, message: 'Please input your feedback!' }]}>
-              <TextArea rows={4} />
-            </Form.Item>
-            <Form.Item name="rating" label="Rating" rules={[{ required: true, message: 'Please give a rating!' }]}>
-              <Rate />
-            </Form.Item>
-            <Form.Item>
-              <Button type="primary" htmlType="submit" loading={loading}>
-                Submit Feedback
-              </Button>
-            </Form.Item>
-          </Form>
-        </Card>
-        <Card title="Recent Feedback" style={{ marginTop: '24px' }}>
-          <List
-            itemLayout="horizontal"
-            dataSource={feedbackList}
-            renderItem={item => (
-              <List.Item>
-                <List.Item.Meta
-                  title={item.title}
-                  description={
-                    <>
-                      <Rate disabled defaultValue={item.rating} />
-                      <p>{item.content}</p>
-                    </>
-                  }
-                />
-              </List.Item>
-            )}
-          />
-        </Card>
-        <Modal
-          title="Feedback Submitted"
-          visible={isModalVisible}
-          onOk={handleModalOk}
-          onCancel={handleModalCancel}
-          footer={[
-            <Button key="back" onClick={handleModalCancel}>
-              Stay on this page
-            </Button>,
-            <Button key="submit" type="primary" onClick={handleModalOk}>
-              Return to Dashboard
-            </Button>,
-          ]}
-        >
-          <p>Your feedback has been submitted successfully. What would you like to do next?</p>
-        </Modal>
-      </div>
-    </MainLayout>
+    <Spin spinning={loading}>
+      <Tabs activeKey={activeTab} onChange={setActiveTab}>
+        <TabPane tab="All Feedbacks" key="all">
+          <Button
+            type="primary"
+            onClick={() => {
+              setEditingFeedbackId(null);
+              form.resetFields();
+              setModalVisible(true);
+            }}
+            style={{ marginBottom: 16 }}
+          >
+            Submit Feedback
+          </Button>
+          {renderFeedbackList()}
+        </TabPane>
+        <TabPane tab="My Feedbacks" key="my">
+          {renderFeedbackList()}
+        </TabPane>
+      </Tabs>
+
+      <Modal
+        title={editingFeedbackId ? "Edit Feedback" : "Submit Feedback"}
+        visible={modalVisible}
+        onCancel={() => setModalVisible(false)}
+        footer={null}
+      >
+        <Form form={form} onFinish={handleSubmit} layout="vertical">
+          <Form.Item name="title" label="Title" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="content" label="Content" rules={[{ required: true }]}>
+            <TextArea rows={4} />
+          </Form.Item>
+          <Form.Item name="rating" label="Rating" rules={[{ required: true }]}>
+            <Rate />
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit">
+              {editingFeedbackId ? "Update" : "Submit"}
+            </Button>
+          </Form.Item>
+        </Form>
+      </Modal>
+    </Spin>
   );
 };
 

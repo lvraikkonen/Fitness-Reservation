@@ -1,5 +1,5 @@
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import func, or_
 from datetime import date, time, timedelta
@@ -26,9 +26,13 @@ class VenueService:
         self.db = db
 
     def get_venue(self, venue_id: int) -> Venue:
-        venue = self.db.query(Venue).filter(Venue.id == venue_id).first()
+        venue = self.db.query(Venue).options(
+            joinedload(Venue.sport_venue)
+        ).filter(Venue.id == venue_id).first()
+
         if not venue:
             raise VenueNotFoundError("Venue not found", status_code=404)
+
         return venue
 
     def get_venues(self, sport_venue_id: Optional[int] = None, skip: int = 0, limit: int = 100) -> List[Venue]:

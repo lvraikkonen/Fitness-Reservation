@@ -280,7 +280,7 @@ def create_sample_feedbacks(db: Session):
     venues = db.query(Venue).all()
 
     feedbacks = []
-    for _ in range(5):  # 创建5个反馈
+    for _ in range(10):  # 创建5个反馈
         user = random.choice(users)
         venue = random.choice(venues)
 

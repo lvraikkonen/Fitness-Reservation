@@ -130,7 +130,7 @@ const Venues = () => {
         {selectedVenue && (
           <>
             <img src={selectedVenue.image_url} alt={selectedVenue.name} style={{ width: '100%', marginBottom: 16 }} />
-            <p><strong>Location:</strong> {selectedVenue.location}</p>
+            <p><strong>Location:</strong> {selectedVenue.sport_venue.location}</p>
             <p><strong>Sport Type:</strong> {selectedVenue.sport_type}</p>
             <p><strong>Capacity:</strong> {selectedVenue.capacity}</p>
             <p><strong>Description:</strong> {selectedVenue.description}</p>
