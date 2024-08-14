@@ -144,51 +144,59 @@ const Feedback = () => {
   );
 
   return (
-    <Spin spinning={loading}>
-      <Tabs activeKey={activeTab} onChange={setActiveTab}>
-        <TabPane tab="All Feedbacks" key="all">
-          <Button
-            type="primary"
-            onClick={() => {
-              setEditingFeedbackId(null);
-              form.resetFields();
-              setModalVisible(true);
-            }}
-            style={{ marginBottom: 16 }}
-          >
-            Submit Feedback
-          </Button>
-          {renderFeedbackList()}
-        </TabPane>
-        <TabPane tab="My Feedbacks" key="my">
-          {renderFeedbackList()}
-        </TabPane>
-      </Tabs>
-
-      <Modal
-        title={editingFeedbackId ? "Edit Feedback" : "Submit Feedback"}
-        visible={modalVisible}
-        onCancel={() => setModalVisible(false)}
-        footer={null}
+    <div style={{ position: 'relative' }}>
+      <Button
+        type="primary"
+        onClick={() => {
+          setEditingFeedbackId(null);
+          form.resetFields();
+          setModalVisible(true);
+        }}
+        style={{
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          zIndex: 1,
+        }}
       >
-        <Form form={form} onFinish={handleSubmit} layout="vertical">
-          <Form.Item name="title" label="Title" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="content" label="Content" rules={[{ required: true }]}>
-            <TextArea rows={4} />
-          </Form.Item>
-          <Form.Item name="rating" label="Rating" rules={[{ required: true }]}>
-            <Rate />
-          </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit">
-              {editingFeedbackId ? "Update" : "Submit"}
-            </Button>
-          </Form.Item>
-        </Form>
-      </Modal>
-    </Spin>
+        Submit Feedback
+      </Button>
+      
+      <Spin spinning={loading}>
+        <Tabs activeKey={activeTab} onChange={setActiveTab}>
+          <TabPane tab="All Feedbacks" key="all">
+            {renderFeedbackList()}
+          </TabPane>
+          <TabPane tab="My Feedbacks" key="my">
+            {renderFeedbackList()}
+          </TabPane>
+        </Tabs>
+
+        <Modal
+          title={editingFeedbackId ? "Edit Feedback" : "Submit Feedback"}
+          visible={modalVisible}
+          onCancel={() => setModalVisible(false)}
+          footer={null}
+        >
+          <Form form={form} onFinish={handleSubmit} layout="vertical">
+            <Form.Item name="title" label="Title" rules={[{ required: true }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="content" label="Content" rules={[{ required: true }]}>
+              <TextArea rows={4} />
+            </Form.Item>
+            <Form.Item name="rating" label="Rating" rules={[{ required: true }]}>
+              <Rate />
+            </Form.Item>
+            <Form.Item>
+              <Button type="primary" htmlType="submit">
+                {editingFeedbackId ? "Update" : "Submit"}
+              </Button>
+            </Form.Item>
+          </Form>
+        </Modal>
+      </Spin>
+    </div>
   );
 };
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { Layout, Menu, Breadcrumb, Avatar } from 'antd';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
@@ -22,6 +22,28 @@ const MainLayout = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const [selectedKey, setSelectedKey] = useState('/dashboard');
+
+  useEffect(() => {
+    const path = location.pathname;
+    const state = location.state;
+
+    if (state && state.from === 'dashboard') {
+      // 如果是从仪表板跳转来的，设置相应的选中项
+      if (path.startsWith('/reservations')) {
+        setSelectedKey('/reservations');
+      } else if (path.startsWith('/venues')) {
+        setSelectedKey('/venues');
+      } else if (path === '/feedback') {
+        setSelectedKey('/feedback');
+      }
+      // 清除 state，防止刷新页面时重复触发
+      navigate(path, { replace: true, state: {} });
+    } else {
+      // 否则，根据当前路径设置选中项
+      setSelectedKey(path);
+    }
+  }, [location, navigate]);
 
   const handleLogout = () => {
     logout();
@@ -69,7 +91,7 @@ const MainLayout = ({ children }) => {
           }}
         >
           <Logo collapsed={collapsed} />
-          <Menu theme="dark" defaultSelectedKeys={[location.pathname]} mode="inline" style={{ flex: 1, paddingBottom: '48px' }}>
+          <Menu theme="dark" selectedKeys={[selectedKey]} mode="inline" style={{ flex: 1, paddingBottom: '48px' }}>
             <Menu.Item key="/dashboard" icon={<HomeOutlined />}>
               <Link to="/dashboard">Dashboard</Link>
             </Menu.Item>
@@ -94,10 +116,10 @@ const MainLayout = ({ children }) => {
               icon={<Avatar icon={<UserOutlined />} />} 
               title={user ? user.username : 'User'}
             >
-              <Menu.Item key="profile" icon={<UserOutlined />}>
+              <Menu.Item key="/profile" icon={<UserOutlined />}>
                 <Link to="/profile">Profile</Link>
               </Menu.Item>
-              <Menu.Item key="settings" icon={<SettingOutlined />}>
+              <Menu.Item key="/settings" icon={<SettingOutlined />}>
                 <Link to="/settings">Settings</Link>
               </Menu.Item>
               <Menu.Item key="logout" icon={<LogoutOutlined />} onClick={handleLogout}>

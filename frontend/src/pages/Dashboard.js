@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Row, Col, Card, List, Statistic, Button, Calendar, Spin, Typography, Tag, Tooltip } from 'antd';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { CalendarOutlined, HistoryOutlined, PlusOutlined, CheckCircleOutlined, CloseCircleOutlined, FieldTimeOutlined } from '@ant-design/icons';
 import { getUserDashboardData } from '../services/userService';
 import { useAuth } from '../contexts/AuthContext';
@@ -28,6 +28,7 @@ const Dashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();  // 使用 AuthContext 获取用户信息
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -43,6 +44,10 @@ const Dashboard = () => {
     };
     fetchDashboardData();
   }, []);
+
+  const handleNavigation = (path) => {
+    navigate(path, { state: { from: 'dashboard' } });
+  };
 
   if (loading) {
     return <Spin size="large" />;
@@ -62,7 +67,7 @@ const Dashboard = () => {
               dataSource={dashboardData.upcomingReservations}
               renderItem={item => (
                 <List.Item
-                  actions={[<Link to={`/reservations/${item.id}`}>View Details</Link>]}
+                  actions={[<a onClick={() => handleNavigation(`/reservations/${item.id}`)}>View Details</a>]}
                 >
                   <List.Item.Meta
                     avatar={<CalendarOutlined />}
@@ -81,15 +86,15 @@ const Dashboard = () => {
               value={dashboardData.monthlyReservationCount}
               suffix={`/ ${dashboardData.monthlyReservationLimit}`}
             />
-            <Button type="primary" icon={<PlusOutlined />} style={{ marginTop: 16 }}>
-              <Link to="/reservations">Quick Reserve</Link>
+            <Button type="primary" icon={<PlusOutlined />} style={{ marginTop: 16 }} onClick={() => handleNavigation('/reservations')}>
+              Quick Reserve
             </Button>
           </Card>
         </Col>
       </Row>
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col span={12}>
-        <Card title="Recent Activities" extra={<Link to="/activities">View All</Link>}>
+        <Card title="Recent Activities" extra={<a onClick={() => handleNavigation('/activities')}>View All</a>}>
           {console.log("Recent activities:", dashboardData.recentActivities)}
           {Array.isArray(dashboardData.recentActivities) && dashboardData.recentActivities.length > 0 ? (
               <List
@@ -133,12 +138,12 @@ const Dashboard = () => {
         </Col>
 
         <Col span={12}>
-          <Card title="Recommended Venues" extra={<Link to="/venues">Explore More</Link>}>
+          <Card title="Recommended Venues" extra={<a onClick={() => handleNavigation('/venues')}>Explore More</a>}>
             <List
               dataSource={dashboardData.recommendedVenues}
               renderItem={item => (
                 <List.Item
-                  actions={[<Link to={`/venues/${item.id}`}>Book Now</Link>]}
+                  actions={[<a onClick={() => handleNavigation(`/venues/${item.id}`)}>Book Now</a>]}
                 >
                   <List.Item.Meta
                     title={item.name}

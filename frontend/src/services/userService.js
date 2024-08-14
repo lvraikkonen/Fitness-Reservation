@@ -92,11 +92,165 @@ export const getUserDashboardData = async () => {
   }
 };
 
-// 其他用户相关的服务函数可以在这里添加
-export const updateUserProfile = async (userData) => {
-  // 实现更新用户资料的逻辑
+// 配置标志：是否使用模拟头像数据
+const USE_MOCK_AVATAR = true;
+
+// 从 localStorage 获取头像 URL
+const getAvatarFromStorage = () => {
+  return localStorage.getItem('mockAvatarUrl') || "";
 };
 
-export const changeUserPassword = async (oldPassword, newPassword) => {
-  // 实现更改用户密码的逻辑
+// 将头像 URL 保存到 localStorage
+const saveAvatarToStorage = (avatarUrl) => {
+  localStorage.setItem('mockAvatarUrl', avatarUrl);
+};
+
+export const getCurrentUserProfile = async () => {
+  try {
+    const response = await userApi.get('/me');
+    const userData = response.data;
+
+    // 如果使用模拟头像，替换 API 返回的头像 URL
+    if (USE_MOCK_AVATAR) {
+      userData.avatar_url = getAvatarFromStorage();
+    }
+
+    return userData;
+  } catch (error) {
+    console.error("Error in getCurrentUserProfile:", error);
+    handleApiError(error, "Failed to fetch current user profile");
+  }
+};
+
+export const updateUserProfile = async (userData) => {
+  try {
+    const response = await userApi.put('/me', userData);
+    const updatedUserData = response.data;
+
+    // 如果使用模拟头像，保持使用存储的头像 URL
+    if (USE_MOCK_AVATAR) {
+      updatedUserData.avatar_url = getAvatarFromStorage();
+    }
+
+    return updatedUserData;
+  } catch (error) {
+    console.error("Error in updateUserProfile:", error);
+    handleApiError(error, "Failed to update user profile");
+  }
+};
+
+export const uploadUserAvatar = async (file) => {
+  if (USE_MOCK_AVATAR) {
+    // 模拟头像上传
+    await new Promise(resolve => setTimeout(resolve, 1000)); // 模拟网络延迟
+
+    let avatarUrl;
+    if (typeof file === 'string' && file.startsWith('data:')) {
+      // 如果文件已经是 base64 字符串，直接使用
+      avatarUrl = file;
+    } else if (file instanceof Blob) {
+      // 如果是 Blob 或 File 对象，使用 FileReader 读取
+      avatarUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
+      });
+    } else {
+      throw new Error('Invalid file type for avatar upload');
+    }
+
+    saveAvatarToStorage(avatarUrl);
+    return {
+      avatar_url: avatarUrl,
+      message: "Avatar uploaded successfully"
+    };
+  } else {
+    // 真实的头像上传 API 调用
+    try {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      const response = await userApi.post('/me/avatar', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error in uploadUserAvatar:", error);
+      handleApiError(error, "Failed to upload avatar");
+    }
+  }
+};
+
+// 配置标志：是否使用模拟设置数据
+const USE_MOCK_SETTINGS = true;
+
+// 从 localStorage 获取设置
+const getSettingsFromStorage = () => {
+  const storedSettings = localStorage.getItem('mockUserSettings');
+  return storedSettings ? JSON.parse(storedSettings) : {
+    email_notifications: true,
+    sms_notifications: false,
+    dark_mode: false
+  };
+};
+
+// 将设置保存到 localStorage
+const saveSettingsToStorage = (settings) => {
+  localStorage.setItem('mockUserSettings', JSON.stringify(settings));
+};
+
+export const getUserSettings = async () => {
+  if (USE_MOCK_SETTINGS) {
+    // 模拟 API 延迟
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return getSettingsFromStorage();
+  } else {
+    try {
+      const response = await userApi.get('/me/settings');
+      return response.data;
+    } catch (error) {
+      console.error("Error in getUserSettings:", error);
+      handleApiError(error, "Failed to fetch user settings");
+    }
+  }
+};
+
+export const updateUserSettings = async (settings) => {
+  if (USE_MOCK_SETTINGS) {
+    // 模拟 API 延迟
+    await new Promise(resolve => setTimeout(resolve, 500));
+    saveSettingsToStorage(settings);
+    return settings;
+  } else {
+    try {
+      const response = await userApi.put('/me/settings', settings);
+      return response.data;
+    } catch (error) {
+      console.error("Error in updateUserSettings:", error);
+      handleApiError(error, "Failed to update user settings");
+    }
+  }
+};
+
+export const fetchUserActivity = async (userId) => {
+  try {
+    const response = await userApi.get(`/users/${userId}/activity`);
+    return response.data;
+  } catch (error) {
+    console.error("Error in fetchUserActivity:", error);
+    handleApiError(error, "Failed to fetch user activity");
+  }
+};
+
+// 错误处理辅助函数
+const handleApiError = (error, defaultMessage) => {
+  if (error.response) {
+    throw new Error(error.response.data.message || defaultMessage);
+  } else if (error.request) {
+    throw new Error("No response received from server");
+  } else {
+    throw new Error(defaultMessage);
+  }
 };

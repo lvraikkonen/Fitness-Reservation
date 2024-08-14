@@ -1,0 +1,165 @@
+/* src/styles/darkMode.css */
+
+body.dark-mode {
+  --bg-primary: #141414;
+  --bg-secondary: #1f1f1f;
+  --text-primary: rgba(255, 255, 255, 0.85);
+  --text-secondary: rgba(255, 255, 255, 0.45);
+  --border-color: #303030;
+  --highlight-color: #1890ff;
+  --hover-color: #263238;
+}
+
+body.dark-mode {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Layout */
+body.dark-mode .ant-layout {
+  background-color: var(--bg-primary);
+}
+
+body.dark-mode .ant-layout-header {
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+body.dark-mode .ant-layout-footer {
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+}
+
+body.dark-mode .ant-layout-sider {
+  background-color: var(--bg-secondary);
+}
+
+/* Menu */
+body.dark-mode .ant-menu-dark,
+body.dark-mode .ant-menu-dark .ant-menu-sub {
+  background-color: var(--bg-secondary);
+}
+
+body.dark-mode .ant-menu-item-selected {
+  background-color: var(--highlight-color) !important;
+}
+
+/* Card */
+body.dark-mode .ant-card {
+  background-color: var(--bg-secondary);
+  border-color: var(--border-color);
+}
+
+body.dark-mode .ant-card-head {
+  border-bottom-color: var(--border-color);
+}
+
+/* Form */
+body.dark-mode .ant-form-item-label > label {
+  color: var(--text-primary);
+}
+
+body.dark-mode .ant-input {
+  background-color: var(--bg-primary);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+body.dark-mode .ant-input:hover {
+  border-color: var(--highlight-color);
+}
+
+body.dark-mode .ant-input:focus,
+body.dark-mode .ant-input-focused {
+  border-color: var(--highlight-color);
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+/* Button */
+body.dark-mode .ant-btn {
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+body.dark-mode .ant-btn-primary {
+  background-color: var(--highlight-color);
+  border-color: var(--highlight-color);
+  color: #fff;
+}
+
+body.dark-mode .ant-btn-primary:hover,
+body.dark-mode .ant-btn-primary:focus {
+  background-color: #40a9ff;
+  border-color: #40a9ff;
+}
+
+/* Switch */
+body.dark-mode .ant-switch {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+body.dark-mode .ant-switch-checked {
+  background-color: var(--highlight-color);
+}
+
+/* Table */
+body.dark-mode .ant-table {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+body.dark-mode .ant-table-thead > tr > th {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+body.dark-mode .ant-table-tbody > tr > td {
+  border-bottom: 1px solid var(--border-color);
+}
+
+body.dark-mode .ant-table-tbody > tr:hover > td {
+  background-color: var(--hover-color);
+}
+
+/* Pagination */
+body.dark-mode .ant-pagination-item {
+  background-color: var(--bg-secondary);
+  border-color: var(--border-color);
+}
+
+body.dark-mode .ant-pagination-item a {
+  color: var(--text-primary);
+}
+
+body.dark-mode .ant-pagination-item-active {
+  border-color: var(--highlight-color);
+}
+
+/* Select */
+body.dark-mode .ant-select-selector {
+  background-color: var(--bg-primary) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+body.dark-mode .ant-select-arrow {
+  color: var(--text-secondary);
+}
+
+/* Modal */
+body.dark-mode .ant-modal-content,
+body.dark-mode .ant-modal-header {
+  background-color: var(--bg-secondary);
+  border-color: var(--border-color);
+}
+
+body.dark-mode .ant-modal-title {
+  color: var(--text-primary);
+}
+
+body.dark-mode .ant-modal-close-x {
+  color: var(--text-secondary);
+}
+
+/* Additional components styles can be added here */
