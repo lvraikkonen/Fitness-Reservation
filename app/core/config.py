@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     LOG_FILE_MAX_BYTES: int = 10 * 1024 * 1024  # 10MB
     LOG_FILE_BACKUP_COUNT: int = 5
 
+    UPLOAD_DIRECTORY: str = os.getenv("UPLOAD_DIRECTORY")
+    BASE_URL: str = os.getenv("BASE_URL")
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

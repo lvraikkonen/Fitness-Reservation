@@ -26,6 +26,7 @@ class User(Base):
     preferred_time = Column(String(100))
     created_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
     updated_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP"))
+    avatar_url = Column(String(255))
 
     reservations = relationship("Reservation", back_populates="user")
     feedbacks = relationship("Feedback", back_populates="user")

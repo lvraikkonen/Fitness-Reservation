@@ -1,10 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date
+from pathlib import Path
+import uuid
 
 from app.core.security import create_access_token
+from app.core.config import settings
 from app.deps import get_db
 from app.models.user import User
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserDashboardResponse
@@ -41,6 +44,33 @@ def login_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = D
 @router.get("/me", response_model=UserResponse)
 def get_current_user_info(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.post("/me/avatar")
+async def upload_avatar(
+        file: UploadFile = File(...),
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+    user_service = UserService(db)
+
+    # 生成唯一的文件名
+    file_extension = Path(file.filename).suffix
+    unique_filename = f"{uuid.uuid4()}{file_extension}"
+
+    # 保存文件
+    upload_dir = Path(settings.UPLOAD_DIRECTORY)
+    file_location = upload_dir / unique_filename
+    file_location.parent.mkdir(parents=True, exist_ok=True)  # 确保目录存在
+
+    file_content = await file.read()
+    file_location.write_bytes(file_content)
+
+    # 更新用户的头像 URL
+    avatar_url = f"{settings.BASE_URL}/{settings.UPLOAD_DIRECTORY}/{unique_filename}"
+    user = user_service.update_user_avatar(current_user.id, avatar_url)
+
+    return {"avatar_url": user.avatar_url}
 
 
 @router.get("/dashboard", response_model=UserDashboardResponse)

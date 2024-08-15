@@ -8,6 +8,7 @@ from app.api.v1.endpoints import reservation
 from app.scripts.init_db import init_db, create_sample_data, recreate_db
 from app.core.config import settings, get_logger
 from contextlib import asynccontextmanager
+from fastapi.staticfiles import StaticFiles
 
 
 @asynccontextmanager
@@ -45,6 +46,8 @@ app.include_router(facility.router, prefix="/api/v1/facilities", tags=["faciliti
 app.include_router(feedback.router, prefix="/feedback", tags=["feedback"])
 app.include_router(reservation.router, prefix="/api/v1/reservations", tags=["reservations"])
 app.include_router(stats.router, prefix="/stats", tags=["statistics"])
+
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 
 @app.get("/")

@@ -93,7 +93,7 @@ export const getUserDashboardData = async () => {
 };
 
 // 配置标志：是否使用模拟头像数据
-const USE_MOCK_AVATAR = true;
+const USE_MOCK_AVATAR = false; // 设置为 false 以使用真实的 API
 
 // 从 localStorage 获取头像 URL
 const getAvatarFromStorage = () => {
@@ -110,7 +110,6 @@ export const getCurrentUserProfile = async () => {
     const response = await userApi.get('/me');
     const userData = response.data;
 
-    // 如果使用模拟头像，替换 API 返回的头像 URL
     if (USE_MOCK_AVATAR) {
       userData.avatar_url = getAvatarFromStorage();
     }
@@ -118,7 +117,7 @@ export const getCurrentUserProfile = async () => {
     return userData;
   } catch (error) {
     console.error("Error in getCurrentUserProfile:", error);
-    handleApiError(error, "Failed to fetch current user profile");
+    throw error;
   }
 };
 
@@ -127,7 +126,6 @@ export const updateUserProfile = async (userData) => {
     const response = await userApi.put('/me', userData);
     const updatedUserData = response.data;
 
-    // 如果使用模拟头像，保持使用存储的头像 URL
     if (USE_MOCK_AVATAR) {
       updatedUserData.avatar_url = getAvatarFromStorage();
     }
@@ -135,41 +133,30 @@ export const updateUserProfile = async (userData) => {
     return updatedUserData;
   } catch (error) {
     console.error("Error in updateUserProfile:", error);
-    handleApiError(error, "Failed to update user profile");
+    throw error;
   }
 };
 
 export const uploadUserAvatar = async (file) => {
   if (USE_MOCK_AVATAR) {
-    // 模拟头像上传
-    await new Promise(resolve => setTimeout(resolve, 1000)); // 模拟网络延迟
-
-    let avatarUrl;
-    if (typeof file === 'string' && file.startsWith('data:')) {
-      // 如果文件已经是 base64 字符串，直接使用
-      avatarUrl = file;
-    } else if (file instanceof Blob) {
-      // 如果是 Blob 或 File 对象，使用 FileReader 读取
-      avatarUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target.result);
-        reader.onerror = (error) => reject(error);
-        reader.readAsDataURL(file);
-      });
-    } else {
-      throw new Error('Invalid file type for avatar upload');
-    }
-
-    saveAvatarToStorage(avatarUrl);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    // 为模拟模式创建一个假的 URL
+    const mockAvatarUrl = URL.createObjectURL(file);
+    saveAvatarToStorage(mockAvatarUrl);
     return {
-      avatar_url: avatarUrl,
+      avatar_url: mockAvatarUrl,
       message: "Avatar uploaded successfully"
     };
   } else {
-    // 真实的头像上传 API 调用
     try {
+      // 检查是否是有效的 File 对象
+      if (!(file instanceof File)) {
+        throw new Error('Invalid file object');
+      }
+
       const formData = new FormData();
-      formData.append('avatar', file);
+      formData.append('file', file);
+
       const response = await userApi.post('/me/avatar', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -178,7 +165,7 @@ export const uploadUserAvatar = async (file) => {
       return response.data;
     } catch (error) {
       console.error("Error in uploadUserAvatar:", error);
-      handleApiError(error, "Failed to upload avatar");
+      throw error;
     }
   }
 };

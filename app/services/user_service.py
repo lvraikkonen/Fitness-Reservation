@@ -168,6 +168,15 @@ class UserService:
             logger.warning(f"Password reset failed for non-existent user ID: {user_id}")
             return False
 
+    def update_user_avatar(self, user_id: int, avatar_url: str) -> User:
+        user = self.db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise UserNotFoundError("User not found")
+        user.avatar_url = avatar_url
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
     def check_rate_limit(self, user_id: int, action: str) -> None:
         # Implement rate limiting logic here
         # For example, check the number of actions performed by the user in the last hour

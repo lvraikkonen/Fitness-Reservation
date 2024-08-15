@@ -1,10 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Avatar, Typography, Form, Input, Button, message, Skeleton, Upload } from 'antd';
+import { Card, Avatar, Typography, Form, Input, Button, message, Skeleton, Upload, Select, TimePicker } from 'antd';
 import { UserOutlined, MailOutlined, PhoneOutlined, BankOutlined, HeartOutlined, ClockCircleOutlined, UploadOutlined } from '@ant-design/icons';
 import { useAuth } from '../contexts/AuthContext';
 import { getCurrentUserProfile, updateUserProfile, uploadUserAvatar } from '../services/userService';
+import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
+const { Option } = Select;
+
+const sportOptions = [
+  'Basketball', 'Football', 'Tennis', 'Swimming', 'Badminton', 'Yoga'
+];
+
+const timeOptions = [
+  '06:00-08:00', '08:00-10:00', '10:00-12:00', '12:00-14:00',
+  '14:00-16:00', '16:00-18:00', '18:00-20:00', '20:00-22:00'
+];
 
 const Profile = () => {
   const { user, updateUser } = useAuth();
@@ -19,12 +30,16 @@ const Profile = () => {
   const fetchUserProfile = async () => {
     try {
       const userData = await getCurrentUserProfile();
-      form.setFieldsValue(userData);
+      form.setFieldsValue({
+        ...userData,
+        preferred_sports: userData.preferred_sports ? userData.preferred_sports.split(',') : [],
+        preferred_time: userData.preferred_time ? userData.preferred_time.split(',') : []
+      });
       setAvatarUrl(userData.avatar_url);
       updateUser(userData);
       setLoading(false);
     } catch (error) {
-      message.error('Failed to fetch user profile');
+      message.error('Failed to fetch user profile: ' + error.message);
       setLoading(false);
     }
   };
@@ -32,7 +47,12 @@ const Profile = () => {
   const onFinish = async (values) => {
     try {
       setLoading(true);
-      const updatedUser = await updateUserProfile(values);
+      const updatedValues = {
+        ...values,
+        preferred_sports: values.preferred_sports.join(','),
+        preferred_time: values.preferred_time.join(',')
+      };
+      const updatedUser = await updateUserProfile(updatedValues);
       updateUser(updatedUser);
       message.success('Profile updated successfully');
     } catch (error) {
@@ -43,25 +63,17 @@ const Profile = () => {
   };
 
   const handleAvatarUpload = async (info) => {
-    const { status } = info.file;
+    const { status, originFileObj } = info.file;
     
-    if (status === 'done') {
+    if (status !== 'uploading') {
       try {
-        // 模拟文件上传
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-          const base64Image = e.target.result;
-          const response = await uploadUserAvatar(base64Image);
-          setAvatarUrl(response.avatar_url);
-          updateUser({ ...user, avatar_url: response.avatar_url });
-          message.success('Avatar uploaded successfully');
-        };
-        reader.readAsDataURL(info.file.originFileObj);
+        const response = await uploadUserAvatar(originFileObj);
+        setAvatarUrl(response.avatar_url);
+        updateUser({ ...user, avatar_url: response.avatar_url });
+        message.success('Avatar uploaded successfully');
       } catch (error) {
-        message.error('Avatar upload failed');
+        message.error('Avatar upload failed: ' + error.message);
       }
-    } else if (status === 'error') {
-      message.error(`${info.file.name} file upload failed.`);
     }
   };
 
@@ -121,10 +133,43 @@ const Profile = () => {
           <Input prefix={<BankOutlined />} />
         </Form.Item>
         <Form.Item name="preferred_sports" label="Preferred Sports">
-          <Input prefix={<HeartOutlined />} />
+          <Select
+            mode="multiple"
+            style={{ width: '100%' }}
+            placeholder="Select your preferred sports"
+            optionLabelProp="label"
+          >
+            {sportOptions.map(sport => (
+              <Option value={sport} label={sport} key={sport}>
+                <div className="demo-option-label-item">
+                  <span role="img" aria-label={sport}>
+                    {
+                     sport === 'Basketball' ? '🏀' : 
+                     sport === 'Football' ? '⚽' : 
+                     sport === 'Tennis' ? '🎾' :
+                     sport === 'Yoga' ? '🧘' :
+                     sport === 'Badminton' ? '🏸' :
+                     sport === 'Swimming' ? '🏊' : ''}
+                  </span>
+                  {sport}
+                </div>
+              </Option>
+            ))}
+          </Select>
         </Form.Item>
         <Form.Item name="preferred_time" label="Preferred Time">
-          <Input prefix={<ClockCircleOutlined />} />
+          <Select
+            mode="multiple"
+            style={{ width: '100%' }}
+            placeholder="Select your preferred time slots"
+            optionLabelProp="label"
+          >
+            {timeOptions.map(time => (
+              <Option value={time} label={time} key={time}>
+                <ClockCircleOutlined /> {time}
+              </Option>
+            ))}
+          </Select>
         </Form.Item>
         <Form.Item>
           <Button type="primary" htmlType="submit" loading={loading}>

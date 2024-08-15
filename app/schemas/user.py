@@ -34,6 +34,7 @@ class UserUpdate(BaseModel):
 
 class UserResponse(UserBase):
     id: int
+    avatar_url: Optional[str] = None
 
     class Config:
         from_attributes = True
