@@ -13,12 +13,15 @@ import React from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import { Layout } from 'antd';
 import { AuthProvider } from './contexts/AuthContext';
-import { ThemeProvider } from './contexts/ThemeContext';  // 导入 ThemeProvider
+import { ThemeProvider } from './contexts/ThemeContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Venues from './pages/Venues';
 import Reservations from './pages/Reservations';
+import UpcomingReservations from './pages/UpcomingReservations';
+import ReservationDetails from './pages/ReservationDetails';
+import RecentActivities from './pages/RecentActivities';
 import Feedback from './pages/Feedback';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
@@ -63,6 +66,9 @@ function App() {
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/venues" element={<Venues />} />
                     <Route path="/reservations" element={<Reservations />} />
+                    <Route path="upcoming-reservations" element={<UpcomingReservations />} />
+                    <Route path="reservations/:id" element={<ReservationDetails />} />
+                    <Route path="recent-activities" element={<RecentActivities />} />
                     <Route path="/feedback" element={<Feedback />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/settings" element={<Settings />} />

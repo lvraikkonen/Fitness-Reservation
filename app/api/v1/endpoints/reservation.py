@@ -8,7 +8,8 @@ from app.models.reservation import ReservationStatus
 from app.schemas.venue_available_time_slot import VenueAvailabilityRead
 from app.services.venue_service import VenueService
 from app.services.reservation_service import ReservationService
-from app.schemas.reservation import ReservationCreate, ReservationUpdate, ReservationRead, PaginatedReservationResponse, \
+from app.schemas.reservation import ReservationCreate, ReservationUpdate, ReservationRead, \
+    ReservationDetailRead, PaginatedReservationResponse, \
     RecurringReservationCreate, RecurringReservationRead, RecurringReservationUpdate, ReservationConfirmationResult
 from app.schemas.reservation import VenueCalendarResponse, ConflictCheckResult
 from app.schemas.waiting_list import WaitingListRead
@@ -57,7 +58,7 @@ def create_reservation(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.get("/reservations/{reservation_id}", response_model=ReservationRead)
+@router.get("/reservations/{reservation_id}", response_model=ReservationDetailRead)
 def get_reservation(
         reservation_id: int,
         current_user: User = Depends(get_current_user),

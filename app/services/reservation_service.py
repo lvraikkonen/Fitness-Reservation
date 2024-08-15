@@ -61,13 +61,14 @@ class ReservationService:
             self.db.rollback()
             raise
 
-    def get_reservation(self, reservation_id: int) -> Optional[ReservationRead]:
+    def get_reservation(self, reservation_id: int) -> Optional[ReservationDetailRead]:
         reservation = (
             self.db.query(Reservation)
             .options(
                 joinedload(Reservation.venue_available_time_slot)
                 .joinedload(VenueAvailableTimeSlot.venue)
-                .joinedload(Venue.sport_venue)
+                .joinedload(Venue.sport_venue),
+                joinedload(Reservation.user)
             )
             .filter(Reservation.id == reservation_id)
             .first()
@@ -76,7 +77,7 @@ class ReservationService:
         if not reservation:
             return None
 
-        return ReservationService.create_reservation_read(reservation)
+        return ReservationService.create_reservation_detail_read(reservation)
 
     def get_all_reservations(self, skip: int = 0, limit: int = 100) -> Tuple[List[ReservationDetailRead], int]:
         try:

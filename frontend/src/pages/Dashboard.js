@@ -62,9 +62,9 @@ const Dashboard = () => {
       <h1>Hello, {user?.username || 'User'}!</h1>
       <Row gutter={[16, 16]}>
         <Col span={16}>
-          <Card title="Upcoming Reservations" extra={<Link to="/reservations">View All</Link>}>
+          <Card title="Upcoming Reservations" extra={<Link to="/upcoming-reservations">View All</Link>}>
             <List
-              dataSource={dashboardData.upcomingReservations}
+              dataSource={dashboardData.upcomingReservations.slice(0, 5)}
               renderItem={item => (
                 <List.Item
                   actions={[<a onClick={() => handleNavigation(`/reservations/${item.id}`)}>View Details</a>]}
