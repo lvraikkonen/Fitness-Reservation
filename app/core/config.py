@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     AUTO_CONFIRM_HOURS: int = os.getenv("AUTO_CONFIRM_HOURS")
     # Check-in
     CHECK_IN_TIME_WINDOW_MINUTES: int = os.getenv("CHECK_IN_TIME_WINDOW_MINUTES")
+    CHECK_IN_TOKEN_EXPIRY_MINUTES: int = os.getenv("CHECK_IN_TOKEN_EXPIRY_MINUTES")
 
     # Log config
     LOG_LEVEL: str = os.getenv("LOG_LEVEL")

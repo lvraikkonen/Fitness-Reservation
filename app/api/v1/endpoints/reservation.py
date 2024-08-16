@@ -409,3 +409,14 @@ def direct_check_in(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail="An unexpected error occurred")
+
+
+@router.post("/check-in-qr")
+async def check_in_with_qr_code(
+    qr_data: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    reservation_service = ReservationService(db)
+    checked_in_reservation = reservation_service.check_in_with_qr_code(qr_data)
+    return {"success": True, "reservation": checked_in_reservation}

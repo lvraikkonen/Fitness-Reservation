@@ -1233,8 +1233,8 @@ class ReservationService:
         reservation_start = datetime.combine(reservation.date, reservation.actual_start_time)
         time_diff = abs((now - reservation_start).total_seconds() / 60)
 
-        if time_diff > settings.CHECK_IN_TIME_WINDOW_MINUTES:
-            raise InvalidCheckInTimeError("Check-in is only allowed within the specified time window")
+        # if time_diff > settings.CHECK_IN_TIME_WINDOW_MINUTES:
+        #     raise InvalidCheckInTimeError("Check-in is only allowed within the specified time window")
 
     def _get_reservation(self, reservation_id: int) -> Reservation:
         reservation = (
@@ -1252,3 +1252,11 @@ class ReservationService:
             raise ReservationNotFoundError(f"Reservation with id {reservation_id} not found")
 
         return reservation
+
+    def check_in_with_qr_code(self, qr_data: str) -> Reservation:
+        reservation_id, token = qr_data.split('|')
+        reservation_id = int(reservation_id.split(':')[1])
+        token = token.split(':')[1]
+
+        self.verify_check_in_token(token)
+        return self.check_in(reservation_id)
