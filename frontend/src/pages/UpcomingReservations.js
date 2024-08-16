@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Space, Button, DatePicker, Select, message, Spin, Pagination } from 'antd';
+import { Row, Col, Space, Button, DatePicker, Select, message, Modal, Spin, Pagination } from 'antd';
 import { fetchVenues, fetchUserReservations, cancelReservation } from '../services/reservationService';
 import ReservationCard from '../components/ReservationCard';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
+const { confirm } = Modal;
 
 const UpcomingReservationsPage = () => {
   const [venues, setVenues] = useState([]);
@@ -19,12 +20,11 @@ const UpcomingReservationsPage = () => {
 
   useEffect(() => {
     loadVenues();
+    loadUserReservations(); // Load all reservations initially
   }, []);
 
   useEffect(() => {
-    if (selectedVenue) {
-      loadUserReservations();
-    }
+    loadUserReservations();
   }, [selectedVenue, dateRange, currentPage]);
 
   const loadVenues = async () => {
@@ -32,9 +32,6 @@ const UpcomingReservationsPage = () => {
     try {
       const data = await fetchVenues();
       setVenues(data);
-      if (data.length > 0) {
-        setSelectedVenue(data[0].id);
-      }
     } catch (error) {
       message.error('Failed to load venues');
     } finally {
@@ -65,7 +62,7 @@ const UpcomingReservationsPage = () => {
   };
 
   const handleCancelReservation = (reservationId) => {
-    message.confirm({
+    confirm({
       title: 'Are you sure you want to cancel this reservation?',
       content: 'This action cannot be undone.',
       onOk: async () => {
@@ -91,6 +88,7 @@ const UpcomingReservationsPage = () => {
               placeholder="Select a venue"
               onChange={handleVenueChange}
               value={selectedVenue}
+              allowClear
             >
               {venues.map(venue => (
                 <Option key={venue.id} value={venue.id}>{venue.name}</Option>

@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import func
+from sqlalchemy import func, and_, or_
 from typing import List, Optional
 from datetime import datetime, date, time, timedelta
 
@@ -217,12 +217,8 @@ class UserService:
             user_id, start_date, end_date, page, page_size
         )
 
-    def get_dashboard_data(self, user_id: int) -> UserDashboardResponse:
-        user = self.get_user(user_id=user_id)
-        current_date = datetime.now()
-        logger.debug(f"Entered into user services part")
-
-        # get top 3 upcoming reservations
+    def get_upcoming_reservations(self, user_id: int, limit: int=3) -> List[UpcomingReservation]:
+        current_datetime = datetime.now()
         upcoming_reservations = (
             self.db.query(Reservation)
             .join(Reservation.venue_available_time_slot)
@@ -231,14 +227,35 @@ class UserService:
             .filter(
                 Reservation.user_id == user_id,
                 Reservation.status.in_([ReservationStatus.PENDING, ReservationStatus.CONFIRMED]),
-                VenueAvailableTimeSlot.date >= current_date
+                or_(
+                    VenueAvailableTimeSlot.date > current_datetime.date(),
+                    and_(
+                        VenueAvailableTimeSlot.date == current_datetime.date(),
+                        VenueAvailableTimeSlot.start_time >= current_datetime.time()
+                    )
+                )
             )
             .order_by(VenueAvailableTimeSlot.date, VenueAvailableTimeSlot.start_time)
-            .limit(3)
-            .all()
+            .limit(limit)
         )
 
-        # 获取最近的活动
+        # logger.debug(f"SQL Query: {upcoming_reservations.statement.compile(compile_kwargs={'literal_binds': True})}")
+        result = upcoming_reservations.all()
+        # logger.debug(f"Query result: {result}")
+
+        return [
+            UpcomingReservation(
+                id=res.id,
+                venue_name=res.venue_available_time_slot.venue.name,
+                sport_venue_name=res.venue_available_time_slot.venue.sport_venue.name,
+                date=res.venue_available_time_slot.date,
+                start_time=res.venue_available_time_slot.start_time,
+                end_time=res.venue_available_time_slot.end_time,
+                status=res.status
+            ) for res in result
+        ]
+
+    def get_recent_activities(self, user_id: int, limit: int = 5) -> List[RecentActivity]:
         VAS = aliased(VenueAvailableTimeSlot)
 
         activities_query = (
@@ -259,53 +276,79 @@ class UserService:
             .outerjoin(Reservation.venue_available_time_slot.of_type(VAS))
             .filter(UserActivity.user_id == user_id)
             .order_by(UserActivity.timestamp.desc())
-            .limit(5)
+            .limit(limit)
         )
 
-        try:
-            results = activities_query.all()
-            logger.debug(f"Query executed successfully, retrieved {len(results)} activities")
+        results = activities_query.all()
+        return [
+            RecentActivity(
+                id=result.id,
+                activity_type=result.activity_type,
+                timestamp=result.timestamp,
+                venue_name=result.venue_name,
+                sport_venue_name=result.sport_venue_name,
+                date=result.date,
+                start_time=result.start_time,
+                end_time=result.end_time,
+                status=result.status
+            ) for result in results
+        ]
 
-            recent_activities = []
-            for result in results:
-                activity = RecentActivity(
-                    id=result.id,
-                    activity_type=result.activity_type,
-                    timestamp=result.timestamp,
-                    venue_name=result.venue_name,
-                    sport_venue_name=result.sport_venue_name,
-                    date=result.date,
-                    start_time=result.start_time,
-                    end_time=result.end_time,
-                    status=result.status
-                )
-                recent_activities.append(activity)
-        except Exception as e:
-            logger.error(f"Error retrieving recent activities: {str(e)}")
-            recent_activities = []
+    def get_recommended_venues(self, user: User, limit: int = 3) -> List[RecommendedVenue]:
+        logger.debug(f"User preferred sports: {user.preferred_sports}")
 
-        # Get recommended venues based on user's preferred sports
+        base_query = self.db.query(Venue).join(SportVenue)
+
         if user.preferred_sports:
-            preferred_sports = user.preferred_sports.split(',')
-            recommended_venues = (
-                self.db.query(Venue)
-                .join(SportVenue)
-                .filter(SportVenue.name.in_(preferred_sports))
-                .order_by(func.random())
-                .limit(3)
-                .all()
-            )
-        else:
-            recommended_venues = (
-                self.db.query(Venue)
-                .join(SportVenue)
-                .order_by(func.random())
-                .limit(3)
-                .all()
-            )
+            preferred_sports = [sport.strip() for sport in user.preferred_sports.split(',')]
+            logger.debug(f"Preferred sports list: {preferred_sports}")
 
-        # Get monthly reservation count and limit
+            # 构建 LIKE 条件
+            like_conditions = []
+            for sport in preferred_sports:
+                like_conditions.extend([
+                    Venue.name.ilike(f"%{sport}%"),
+                    Venue.sport_type.ilike(f"%{sport}%"),
+                    Venue.description.ilike(f"%{sport}%"),
+                    SportVenue.name.ilike(f"%{sport}%")
+                ])
+
+            # 先查询符合条件的场地
+            preferred_query = base_query.filter(or_(*like_conditions))
+            preferred_venues = preferred_query.order_by(func.random()).limit(limit).all()
+
+            logger.debug(f"Preferred venues count: {len(preferred_venues)}")
+
+            # 如果符合条件的场地不足，补充其他场地
+            if len(preferred_venues) < limit:
+                remaining_limit = limit - len(preferred_venues)
+                other_venues = base_query.filter(~Venue.id.in_([v.id for v in preferred_venues])) \
+                    .order_by(func.random()) \
+                    .limit(remaining_limit) \
+                    .all()
+                recommended_venues = preferred_venues + other_venues
+            else:
+                recommended_venues = preferred_venues
+        else:
+            # 如果用户没有偏好，随机选择场地
+            recommended_venues = base_query.order_by(func.random()).limit(limit).all()
+
+        if not recommended_venues:
+            logger.warning("No recommended venues found")
+            return []
+
+        return [
+            RecommendedVenue(
+                id=venue.id,
+                name=venue.name,
+                sport_venue_name=venue.sport_venue.name
+            ) for venue in recommended_venues
+        ]
+
+    def get_monthly_reservation_info(self, user_id: int, user_role: str) -> tuple:
+        current_date = datetime.now()
         start_of_month = current_date.replace(day=1)
+
         monthly_reservation_count = (
             self.db.query(func.count(Reservation.id))
             .filter(
@@ -316,44 +359,33 @@ class UserService:
             .scalar()
         )
 
-        # Get monthly reservation limit from ReservationRules
         monthly_reservation_limit = (
             self.db.query(ReservationRules.max_monthly_reservations)
-            .filter(ReservationRules.user_role == user.role)
-            .order_by(ReservationRules.id.desc())  # In case there are multiple rules, get the latest
+            .filter(ReservationRules.user_role == user_role)
+            .order_by(ReservationRules.id.desc())
             .first()
         )
 
-        # If no rule found for the user's role, use a default value or raise an exception
         if monthly_reservation_limit is None:
-            # Option 1: Use a default value
             monthly_reservation_limit = 20
-            # Option 2: Raise an exception
-            # raise ValueError(f"No reservation rule found for user role: {user.role}")
         else:
-            monthly_reservation_limit = monthly_reservation_limit[0]  # Unpack the result
+            monthly_reservation_limit = monthly_reservation_limit[0]
+
+        return monthly_reservation_count, monthly_reservation_limit
+
+    def get_dashboard_data(self, user_id: int) -> UserDashboardResponse:
+        user = self.get_user(user_id=user_id)
+
+        upcoming_reservations = self.get_upcoming_reservations(user_id)
+        recent_activities = self.get_recent_activities(user_id)
+        recommended_venues = self.get_recommended_venues(user)
+        monthly_reservation_count, monthly_reservation_limit = self.get_monthly_reservation_info(user_id, user.role)
 
         return UserDashboardResponse(
             username=user.username,
-            upcoming_reservations=[
-                UpcomingReservation(
-                    id=res.id,
-                    venue_name=res.venue_available_time_slot.venue.name,
-                    sport_venue_name=res.venue_available_time_slot.venue.sport_venue.name,
-                    date=res.venue_available_time_slot.date,
-                    start_time=res.venue_available_time_slot.start_time,
-                    end_time=res.venue_available_time_slot.end_time,
-                    status=res.status
-                ) for res in upcoming_reservations
-            ],
+            upcoming_reservations=upcoming_reservations,
             recent_activities=recent_activities,
-            recommended_venues=[
-                RecommendedVenue(
-                    id=venue.id,
-                    name=venue.name,
-                    sport_venue_name=venue.sport_venue.name
-                ) for venue in recommended_venues
-            ],
+            recommended_venues=recommended_venues,
             monthly_reservation_count=monthly_reservation_count,
             monthly_reservation_limit=monthly_reservation_limit
         )

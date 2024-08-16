@@ -94,8 +94,7 @@ const Dashboard = () => {
       </Row>
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col span={12}>
-        <Card title="Recent Activities" extra={<a onClick={() => handleNavigation('/activities')}>View All</a>}>
-          {console.log("Recent activities:", dashboardData.recentActivities)}
+        <Card title="Recent Activities" extra={<a onClick={() => handleNavigation('/recent-activities')}>View All</a>}>
           {Array.isArray(dashboardData.recentActivities) && dashboardData.recentActivities.length > 0 ? (
               <List
                 itemLayout="horizontal"
@@ -138,12 +137,12 @@ const Dashboard = () => {
         </Col>
 
         <Col span={12}>
-          <Card title="Recommended Venues" extra={<a onClick={() => handleNavigation('/venues')}>Explore More</a>}>
+          <Card title="Recommended Venues" extra={<Link to="/venues">Explore More</Link>}>
             <List
               dataSource={dashboardData.recommendedVenues}
               renderItem={item => (
                 <List.Item
-                  actions={[<a onClick={() => handleNavigation(`/venues/${item.id}`)}>Book Now</a>]}
+                  actions={[<Link to={`/venues/${item.id}`}>Book Now</Link>]}
                 >
                   <List.Item.Meta
                     title={item.name}

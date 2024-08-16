@@ -10,7 +10,8 @@ from app.core.security import create_access_token
 from app.core.config import settings
 from app.deps import get_db
 from app.models.user import User
-from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserDashboardResponse
+from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserDashboardResponse, \
+    UpcomingReservation, RecentActivity, RecommendedVenue
 from app.schemas.token import Token
 from app.schemas.reservation import PaginatedReservationResponse
 from app.schemas.user import UserResetPasswordRequest, UserResetPassword
@@ -79,7 +80,6 @@ def get_user_dashboard(
         db: Session = Depends(get_db)
 ):
     user_service = UserService(db)
-    logger.debug(f"Get current user: {user.email}")
 
     try:
         dashboard_data = user_service.get_dashboard_data(user.id)
@@ -87,6 +87,48 @@ def get_user_dashboard(
     except Exception as e:
         logger.error(f"Error retrieving user dashboard data: {str(e)}")
         raise HTTPException(status_code=500, detail="An error occurred while retrieving user dashboard data")
+
+
+@router.get("/upcoming-reservations", response_model=List[UpcomingReservation])
+def get_upcoming_reservations(
+    limit: int = 3,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    user_service = UserService(db)
+    return user_service.get_upcoming_reservations(current_user.id, limit)
+
+
+@router.get("/recent-activities", response_model=List[RecentActivity])
+def get_recent_activities(
+    limit: int = 5,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    user_service = UserService(db)
+    return user_service.get_recent_activities(current_user.id, limit)
+
+
+@router.get("/recommended-venues", response_model=List[RecommendedVenue])
+def get_recommended_venues(
+    limit: int = 3,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    user_service = UserService(db)
+    logger.info(f"Recommend {limit} Venues for user.")
+    return user_service.get_recommended_venues(current_user, limit)
+
+
+@router.get("/monthly-reservation-info", response_model=dict)
+def get_monthly_reservation_info(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    user_service = UserService(db)
+    count, limit = user_service.get_monthly_reservation_info(current_user.id, current_user.role)
+    return {"monthly_reservation_count": count, "monthly_reservation_limit": limit}
+
 
 
 @router.put("/me", response_model=UserResponse)

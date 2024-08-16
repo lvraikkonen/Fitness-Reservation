@@ -65,10 +65,11 @@ function App() {
                   <Route element={<PrivateRoute><MainLayout /></PrivateRoute>}>
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/venues" element={<Venues />} />
+                    <Route path="/venues/:id" element={<Venues />} />
                     <Route path="/reservations" element={<Reservations />} />
-                    <Route path="upcoming-reservations" element={<UpcomingReservations />} />
-                    <Route path="reservations/:id" element={<ReservationDetails />} />
-                    <Route path="recent-activities" element={<RecentActivities />} />
+                    <Route path="/upcoming-reservations" element={<UpcomingReservations />} />
+                    <Route path="/reservations/:id" element={<ReservationDetails />} />
+                    <Route path="/recent-activities" element={<RecentActivities />} />
                     <Route path="/feedback" element={<Feedback />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/settings" element={<Settings />} />
